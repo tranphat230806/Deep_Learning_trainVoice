@@ -1,102 +1,80 @@
 import os
-import glob
-import numpy as np
+import time
 import sounddevice as sd
 import soundfile as sf
-from resemblyzer import VoiceEncoder, preprocess_wav
+from transformers import pipeline
+import warnings
 
-# =====================================
-# CONFIG
-# =====================================
-MY_FOLDER = r"E:\LuuTruSinhVien\LuuTruPyThon\doAnDeep\Data\my_voice"
-TEMP_FILE = "mic_test.wav"
+warnings.filterwarnings("ignore")
 
-SR = 16000
-DURATION = 4
-THRESHOLD = 0.78
+# ==========================================
+# CẤU HÌNH THU ÂM
+# ==========================================
+SR = 16000          # Tần số lấy mẫu chuẩn cho Whisper (16kHz)
+DURATION = 5        # Số giây thu âm mỗi lần
+TEMP_WAV = "temp_mic.wav"
 
-# =====================================
-# LOAD MODEL
-# =====================================
-print("Đang load model...")
-encoder = VoiceEncoder()
+# ==========================================
+# KHỞI TẠO MODEL PHO-WHISPER
+# ==========================================
+print("Đang tải model PhoWhisper vào RAM...")
+transcriber = pipeline("automatic-speech-recognition", model="./models/PhoWhisper-medium")
+print("✅ Model đã sẵn sàng!\n")
 
-# =====================================
-# CHỈ LẤY FILE GỐC, BỎ _fixed
-# =====================================
-files = []
+def record_audio():
+    """Hàm mở micro và thu âm"""
+    input("Bấm [ENTER] để bắt đầu nói...")
+    print(f"🎤 Đang thu âm ({DURATION} giây) - Hãy nói lệnh của bạn!")
+    
+    # Mở mic thu âm
+    audio = sd.rec(int(DURATION * SR), samplerate=SR, channels=1, dtype="float32")
+    sd.wait() 
+    
+    # Ghi ra file .wav tạm
+    sf.write(TEMP_WAV, audio, SR)
+    print("✅ Đã thu xong! Đang chuyển cho AI xử lý...\n")
+    return TEMP_WAV
 
-for f in glob.glob(os.path.join(MY_FOLDER, "*.wav")):
-    name = os.path.basename(f).lower()
+def recognize_audio(file_path):
+    """Hàm đưa file vào model để nhận diện"""
+    start_time = time.time()
+    
+    # Chạy AI
+    result = transcriber(file_path)
+    
+    end_time = time.time()
+    
+    print("=" * 40)
+    print("KẾT QUẢ NHẬN DIỆN:")
+    print(f"Câu lệnh: {result['text']}")
+    print(f"Thời gian xử lý: {round(end_time - start_time, 2)} giây")
+    print("=" * 40 + "\n")
 
-    if "_fixed" in name:
-        continue
-
-    if "test" in name:
-        continue
-
-    if "mic" in name:
-        continue
-
-    files.append(f)
-
-print("Danh sách file dùng để học:")
-for f in files:
-    print("-", os.path.basename(f))
-
-print("Tổng file:", len(files))
-
-# =====================================
-# ENROLL GIỌNG CỦA BẠN
-# =====================================
-embeds = []
-
-for file in files:
-    wav = preprocess_wav(file)
-    embed = encoder.embed_utterance(wav)
-    embeds.append(embed)
-
-my_voice_embed = np.mean(embeds, axis=0)
-
-print("Đã học xong giọng của bạn")
-
-# =====================================
-# RECORD MIC
-# =====================================
-input("Nhấn Enter để bắt đầu nói...")
-
-print("🎤 Đang ghi âm...")
-
-audio = sd.rec(
-    int(DURATION * SR),
-    samplerate=SR,
-    channels=1,
-    dtype="float32"
-)
-
-sd.wait()
-
-sf.write(TEMP_FILE, audio, SR)
-
-print("Đã ghi xong!")
-
-# =====================================
-# VERIFY
-# =====================================
-wav = preprocess_wav(TEMP_FILE)
-test_embed = encoder.embed_utterance(wav)
-
-score = np.dot(my_voice_embed, test_embed) / (
-    np.linalg.norm(my_voice_embed) *
-    np.linalg.norm(test_embed)
-)
-
-print("-" * 40)
-print("Similarity Score:", round(float(score), 4))
-print("Threshold       :", THRESHOLD)
-print("-" * 40)
-
-if score >= THRESHOLD:
-    print("✅ XÁC NHẬN: ĐÚNG LÀ BẠN")
-else:
-    print("❌ KHÔNG PHẢI BẠN")
+# ==========================================
+# LUỒNG CHẠY CHÍNH (MAIN LOOP)
+# ==========================================
+if __name__ == "__main__":
+    try:
+        while True:
+            # 1. Thu âm
+            wav_file = record_audio()
+            
+            # 2. Nhận diện chữ
+            recognize_audio(wav_file)
+            
+            # 3. Dọn dẹp file tạm
+            if os.path.exists(TEMP_WAV):
+                os.remove(TEMP_WAV)
+                
+            # 4. Hỏi xem có muốn tiếp tục không
+            tiep_tuc = input("Nhập 'q' để thoát, hoặc bấm [ENTER] để nói câu khác: ")
+            if tiep_tuc.lower() == 'q':
+                print("Đã thoát chương trình.")
+                break
+            print("\n")
+            
+    except KeyboardInterrupt:
+        # Bắt sự kiện người dùng bấm Ctrl+C để thoát ngang
+        print("\n👋 Đã thoát chương trình.")
+        if os.path.exists(TEMP_WAV):
+            os.remove(TEMP_WAV)
