@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Living Room</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #0a1929 0%, #1a3a52 50%, #2d5a7b 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        /* Ambient background effects */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 30% 20%, rgba(255, 150, 100, 0.08) 0%, transparent 50%);
+            pointer-events: none;
+            animation: drift 20s ease-in-out infinite;
+            z-index: 0;
+        }
+
+        @keyframes drift {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(20px, 20px); }
+        }
+
+        /* Header */
+        .header {
+            position: relative;
+            z-index: 50;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(10, 25, 41, 0.6);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .logo {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -1px;
+            background: linear-gradient(120deg, #ff9900, #ffb84d);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 40px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            padding: 8px 16px;
+            border-radius: 8px;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            color: #ffb84d;
+            background: rgba(255, 184, 77, 0.1);
+        }
+
+        /* Main container */
+        .container {
+            flex: 1;
+            display: flex;
+            gap: 30px;
+            padding: 40px;
+            max-width: 1600px;
+            margin: 0 auto;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Left side - Room scene */
+        .room-container {
+            flex: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .room-header {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        /* Room scene with interior */
+        .room-scene {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 10;
+            background: linear-gradient(135deg, #f5e6d3 0%, #e8d5c4 100%);
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            margin-bottom: 20px;
+        }
+
+        /* Wall gradient for realism */
+        .room-scene::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, 
+                rgba(200, 180, 160, 0.3) 0%, 
+                rgba(220, 200, 180, 0) 50%, 
+                rgba(180, 160, 140, 0.2) 100%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Door */
+        .door-frame {
+            position: absolute;
+            left: 8%;
+            top: 15%;
+            width: 120px;
+            height: 200px;
+            background: linear-gradient(90deg, #8b6f47 0%, #a0826d 100%);
+            border-radius: 2px;
+            border: 3px solid #5a4a3a;
+            z-index: 10;
+            box-shadow: inset -2px 0 5px rgba(0, 0, 0, 0.3),
+                        0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .door {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #a0826d 0%, #8b6f47 100%);
+            border-radius: 2px;
+            cursor: pointer;
+            transform-origin: left center;
+            transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
+            user-select: none;
+        }
+
+        .door.open {
+            transform: rotateY(100deg);
+        }
+
+        .door-knob {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            width: 16px;
+            height: 16px;
+            background: radial-gradient(circle at 35% 35%, #ffd700, #daa520);
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3),
+                        inset -1px -1px 2px rgba(0, 0, 0, 0.2);
+            transform: translateY(-50%);
+            z-index: 2;
+        }
+
+        /* Furniture in room */
+        .furniture {
+            position: absolute;
+            z-index: 5;
+        }
+
+        /* Couch */
+        .couch {
+            bottom: 15%;
+            left: 35%;
+            width: 280px;
+            height: 80px;
+            background: linear-gradient(135deg, #8b4c7e 0%, #9d5a8f 100%);
+            border-radius: 12px 12px 4px 4px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .couch::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent 0%, rgba(0, 0, 0, 0.1) 50%, transparent 100%);
+            border-radius: 12px 12px 4px 4px;
+        }
+
+        /* Window */
+        .window {
+            position: absolute;
+            top: 20%;
+            right: 12%;
+            width: 140px;
+            height: 120px;
+            background: linear-gradient(135deg, #87ceeb 0%, #e0f6ff 100%);
+            border-radius: 8px;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4),
+                        0 4px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .window::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(45deg, transparent 48%, #ddd 48%, #ddd 52%, transparent 52%),
+                        linear-gradient(-45deg, transparent 48%, #ddd 48%, #ddd 52%, transparent 52%);
+            background-size: 20px 20px;
+            background-position: center;
+        }
+
+        /* Device controls overlay */
+        .device-controls {
+            position: absolute;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            padding: 20px;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .device-btn {
+            pointer-events: all;
+            width: 90px;
+            height: 90px;
+            border-radius: 16px;
+            border: none;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+            font-size: 24px;
+        }
+
+        .device-btn:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+        }
+
+        .device-btn.active {
+            background: linear-gradient(135deg, #ff9900 0%, #ffb84d 100%);
+            color: white;
+            box-shadow: 0 12px 32px rgba(255, 153, 0, 0.3);
+        }
+
+        .device-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .device-btn.active .device-label {
+            color: white;
+        }
+
+        .device-icon {
+            font-size: 28px;
+        }
+
+        /* Fan animation */
+        .fan-icon.spinning {
+            animation: fanSpin 0.8s linear infinite;
+        }
+
+        @keyframes fanSpin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Light animation */
+        .light-icon.glowing {
+            animation: lightGlow 1.5s ease-in-out infinite;
+        }
+
+        @keyframes lightGlow {
+            0%, 100% { text-shadow: 0 0 0 rgba(255, 200, 0, 0); opacity: 1; }
+            50% { text-shadow: 0 0 20px rgba(255, 200, 0, 0.8); opacity: 0.8; }
+        }
+
+        /* Right side - Control panel */
+        .control-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .panel-card {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .panel-card:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.25);
+        }
+
+        .panel-title {
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+            color: #ffb84d;
+        }
+
+        /* Device status list */
+        .device-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .device-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            font-size: 13px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .device-status.active {
+            background: rgba(255, 153, 0, 0.15);
+            border-color: rgba(255, 184, 77, 0.3);
+        }
+
+        .device-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-badge {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .device-status.active .status-badge {
+            background: #ffb84d;
+            box-shadow: 0 0 10px rgba(255, 184, 77, 0.6);
+        }
+
+        /* Voice control section */
+        .voice-card {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .waveform {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 3px;
+            height: 80px;
+            margin-bottom: 16px;
+        }
+
+        .wave-bar {
+            width: 3px;
+            background: linear-gradient(180deg, #ffb84d 0%, #ff9900 100%);
+            border-radius: 2px;
+            opacity: 0.3;
+            height: 10px;
+            transition: all 0.1s ease;
+        }
+
+        .wave-bar.active {
+            opacity: 1;
+            animation: waveAnimation 0.5s ease-in-out;
+        }
+
+        @keyframes waveAnimation {
+            0%, 100% { height: 10px; opacity: 0.4; }
+            50% { height: 60px; opacity: 1; }
+        }
+
+        .mic-button {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            background: linear-gradient(135deg, #ff9900 0%, #ffb84d 100%);
+            color: white;
+            font-size: 16px;
+            font-weight: 700;
+            border-radius: 14px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 8px 24px rgba(255, 153, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .mic-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px rgba(255, 153, 0, 0.4);
+        }
+
+        .mic-button:active {
+            transform: translateY(0);
+        }
+
+        .mic-button.listening {
+            animation: micPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes micPulse {
+            0%, 100% { box-shadow: 0 8px 24px rgba(255, 153, 0, 0.3); }
+            50% { box-shadow: 0 12px 40px rgba(255, 153, 0, 0.6); }
+        }
+
+        .command-display {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 12px;
+            line-height: 1.5;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .command-display.active {
+            color: #ffb84d;
+            border-color: rgba(255, 184, 77, 0.3);
+            background: rgba(255, 153, 0, 0.1);
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .control-panel {
+                flex-direction: row;
+            }
+
+            .panel-card {
+                flex: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+                gap: 20px;
+            }
+
+            .nav-links {
+                display: none;
+            }
+
+            .room-header {
+                font-size: 24px;
+            }
+
+            .device-btn {
+                width: 70px;
+                height: 70px;
+                font-size: 20px;
+            }
+
+            .control-panel {
+                flex-direction: column;
+            }
+
+            .panel-card {
+                flex: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">🏠 SmartHome</div>
+        <ul class="nav-links">
+            <li><a href="home.html" class="active">Home</a></li>
+            <li><a href="dashboard.html">Dashboard</a></li>
+            <li><a href="#">Settings</a></li>
+        </ul>
+    </header>
+
+    <div class="container">
+        <!-- Room Scene -->
+        <div class="room-container">
+            <h1 class="room-header">Living Room</h1>
+            <div class="room-scene">
+                <!-- Door -->
+                <div class="door-frame">
+                    <div class="door" id="door">
+                        <div class="door-knob"></div>
+                    </div>
+                </div>
+
+                <!-- Window -->
+                <div class="window"></div>
+
+                <!-- Furniture -->
+                <div class="furniture couch"></div>
+
+                <!-- Device Controls -->
+                <div class="device-controls">
+                    <button class="device-btn" id="fanBtn" data-device="fan">
+                        <span class="device-icon fan-icon">🌀</span>
+                        <span class="device-label">Fan</span>
+                    </button>
+                    <button class="device-btn" id="acBtn" data-device="ac">
+                        <span class="device-icon">❄️</span>
+                        <span class="device-label">AC</span>
+                    </button>
+                    <button class="device-btn" id="tvBtn" data-device="tv">
+                        <span class="device-icon">📺</span>
+                        <span class="device-label">TV</span>
+                    </button>
+                    <button class="device-btn" id="lightsBtn" data-device="lights">
+                        <span class="device-icon light-icon">💡</span>
+                        <span class="device-label">Lights</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <!-- Device Status -->
+            <div class="panel-card">
+                <div class="panel-title">Device Status</div>
+                <div class="device-list">
+                    <div class="device-status door-status">
+                        <span class="device-name">
+                            <span class="status-badge"></span>
+                            Door
+                        </span>
+                        <span id="doorStatus">Closed</span>
+                    </div>
+                    <div class="device-status fan-status">
+                        <span class="device-name">
+                            <span class="status-badge"></span>
+                            Fan
+                        </span>
+                        <span id="fanStatus">Off</span>
+                    </div>
+                    <div class="device-status ac-status">
+                        <span class="device-name">
+                            <span class="status-badge"></span>
+                            AC
+                        </span>
+                        <span id="acStatus">Off</span>
+                    </div>
+                    <div class="device-status tv-status">
+                        <span class="device-name">
+                            <span class="status-badge"></span>
+                            TV
+                        </span>
+                        <span id="tvStatus">Off</span>
+                    </div>
+                    <div class="device-status lights-status">
+                        <span class="device-name">
+                            <span class="status-badge"></span>
+                            Lights
+                        </span>
+                        <span id="lightsStatus">Off</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Voice Control -->
+            <div class="panel-card voice-card">
+                <div class="panel-title">Voice Control</div>
+                <div class="waveform" id="waveform"></div>
+                <button class="mic-button" id="micButton">
+                    🎤 Tap to Listen
+                </button>
+                <div class="command-display" id="commandDisplay">
+                    Try: "Open the door" or "Turn on the lights"
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Device states
+        const devices = {
+            door: false,
+            fan: false,
+            ac: false,
+            tv: false,
+            lights: false
+        };
+
+        const deviceNames = {
+            door: { open: 'Open', closed: 'Closed' },
+            fan: { on: 'On', off: 'Off' },
+            ac: { on: 'On', off: 'Off' },
+            tv: { on: 'On', off: 'Off' },
+            lights: { on: 'On', off: 'Off' }
+        };
+
+        // Initialize waveform
+        function initWaveform() {
+            const container = document.getElementById('waveform');
+            for (let i = 0; i < 35; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'wave-bar';
+                container.appendChild(bar);
+            }
+        }
+
+        // Toggle device
+        function toggleDevice(device) {
+            devices[device] = !devices[device];
+            updateUI(device);
+            
+            if (device === 'door') {
+                animateDoor();
+            } else if (device === 'fan') {
+                toggleFanAnimation();
+            } else if (device === 'lights') {
+                toggleLightAnimation();
+            }
+        }
+
+        // Update UI
+        function updateUI(device) {
+            const btn = document.getElementById(device + 'Btn');
+            const status = document.getElementById(device + 'Status');
+            const statusEl = document.querySelector('.' + device + '-status');
+
+            if (devices[device]) {
+                btn.classList.add('active');
+                statusEl.classList.add('active');
+                if (device === 'door') {
+                    status.textContent = 'Open';
+                } else {
+                    status.textContent = 'On';
+                }
+            } else {
+                btn.classList.remove('active');
+                statusEl.classList.remove('active');
+                if (device === 'door') {
+                    status.textContent = 'Closed';
+                } else {
+                    status.textContent = 'Off';
+                }
+            }
+        }
+
+        // Door animation
+        function animateDoor() {
+            const door = document.getElementById('door');
+            if (devices.door) {
+                door.classList.add('open');
+            } else {
+                door.classList.remove('open');
+            }
+        }
+
+        // Fan animation
+        function toggleFanAnimation() {
+            const fanIcon = document.querySelector('.fan-icon');
+            if (devices.fan) {
+                fanIcon.classList.add('spinning');
+            } else {
+                fanIcon.classList.remove('spinning');
+            }
+        }
+
+        // Light animation
+        function toggleLightAnimation() {
+            const lightIcon = document.querySelector('.light-icon');
+            if (devices.lights) {
+                lightIcon.classList.add('glowing');
+            } else {
+                lightIcon.classList.remove('glowing');
+            }
+        }
+
+        // Device button listeners
+        document.querySelectorAll('.device-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const device = btn.dataset.device;
+                toggleDevice(device);
+            });
+        });
+
+        // Door click
+        document.getElementById('door').addEventListener('click', () => {
+            toggleDevice('door');
+        });
+
+        // Voice control
+        const micButton = document.getElementById('micButton');
+        let isListening = false;
+
+        micButton.addEventListener('click', () => {
+            if (!isListening) {
+                startListening();
+            }
+        });
+
+        function startListening() {
+            isListening = true;
+            micButton.classList.add('listening');
+            micButton.textContent = '🎤 Listening...';
+            animateWaveform();
+            
+            const display = document.getElementById('commandDisplay');
+            display.textContent = 'Listening for commands...';
+            display.classList.remove('active');
+
+            setTimeout(() => {
+                simulateCommand();
+            }, 2000);
+        }
+
+        function animateWaveform() {
+            const bars = document.querySelectorAll('.wave-bar');
+            bars.forEach((bar, i) => {
+                setTimeout(() => {
+                    bar.classList.add('active');
+                    setTimeout(() => bar.classList.remove('active'), 500);
+                }, i * 50);
+            });
+
+            if (isListening) {
+                setTimeout(animateWaveform, 2000);
+            }
+        }
+
+        function simulateCommand() {
+            const commands = [
+                { text: 'Open the door', action: 'door' },
+                { text: 'Turn on the lights', action: 'lights' },
+                { text: 'Turn on the fan', action: 'fan' },
+                { text: 'Turn on AC', action: 'ac' },
+                { text: 'Turn on TV', action: 'tv' }
+            ];
+
+            const cmd = commands[Math.floor(Math.random() * commands.length)];
+            const display = document.getElementById('commandDisplay');
+            display.textContent = `Command: "${cmd.text}"`;
+            display.classList.add('active');
+
+            // Execute command
+            if (!devices[cmd.action]) {
+                toggleDevice(cmd.action);
+            }
+
+            setTimeout(() => {
+                stopListening();
+            }, 1500);
+        }
+
+        function stopListening() {
+            isListening = false;
+            micButton.classList.remove('listening');
+            micButton.textContent = '🎤 Tap to Listen';
+        }
+
+        // Initialize
+        initWaveform();
+    </script>
+</body>
+</html>
