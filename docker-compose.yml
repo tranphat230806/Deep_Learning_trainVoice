@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  vite-ui:
+    build:
+      context: ./Frontend/smart_home_web
+      dockerfile: Dockerfile
+    container_name: smart_home_vite
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./Frontend/smart_home_web:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    networks:
+      - smart_home_network
+
+networks:
+  smart_home_network:
+    driver: bridge

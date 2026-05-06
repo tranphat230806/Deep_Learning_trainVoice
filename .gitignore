@@ -31,6 +31,8 @@ dist-ssr
 *.sln
 *.sw?
 
+Raw_Data
+
 
 #Model files
 pytorch_model.bin
