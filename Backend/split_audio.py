@@ -7,7 +7,7 @@ def process_mixed_audio_folder(raw_folder, dataset_folder, prefix="moden"):
     os.makedirs(dataset_folder, exist_ok=True)
     
     # Biến đếm tổng số file đã cắt được từ TẤT CẢ các file gốc
-    total_saved = 0
+    total_saved = 331
     
     print(f"📂 Đang quét thư mục: {raw_folder}")
     
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     THU_MUC_CHUA_FILE_GOC = "Raw_Data" 
     
     # Thư mục chứa data sạch để train
-    THU_MUC_LUU_DATASET = "Dataset/mo_den"
+    THU_MUC_LUU_DATASET = "Dataset1/moden1"
     
     # Tên tiền tố
     TEN_PREFIX = "moden"
