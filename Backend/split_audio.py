@@ -1,61 +1,64 @@
 import os
-from pydub import AudioSegment
-from pydub.silence import split_on_silence
+import shutil
+import random
 
-def process_mixed_audio_folder(raw_folder, dataset_folder, prefix="moden"):
-    # Tạo thư mục đích để chứa data chuẩn
-    os.makedirs(dataset_folder, exist_ok=True)
+SOURCE_DIR = "Google_Speech_Data" 
+TRAIN_DIR = "Dataset/Train"
+TEST_DIR = "Dataset/Test"
+
+# Chọn từ khóa đại diện
+CLASSES = ["yes", "no", "stop", "on", "off", "noise"]
+
+# Tỷ lệ chia: 90% cho Train, 10% cho Test
+TRAIN_RATIO = 0.90
+
+def prepare_dataset():
+    print("🚀 BẮT ĐẦU CHIA DỮ LIỆU TỰ ĐỘNG (TỶ LỆ 90/10)...")
     
-    # Biến đếm tổng số file đã cắt được từ TẤT CẢ các file gốc
-    total_saved = 331
-    
-    print(f"📂 Đang quét thư mục: {raw_folder}")
-    
-    # Duyệt qua từng file (wav, m4a, mp3...) có trong thư mục
-    for filename in os.listdir(raw_folder):
-        # Bỏ qua các file rác của hệ thống, chỉ lấy file âm thanh
-        if filename.lower().endswith((".wav", ".m4a", ".mp3", ".mp4")):
-            file_path = os.path.join(raw_folder, filename)
-            print(f"\n⏳ Đang xử lý file: {filename} ...")
+    # Tạo cấu trúc thư mục
+    for c in CLASSES:
+        os.makedirs(os.path.join(TRAIN_DIR, c), exist_ok=True)
+        os.makedirs(os.path.join(TEST_DIR, c), exist_ok=True)
+        
+    total_train = 0
+    total_test = 0
+
+    for c in CLASSES:
+        src_folder = os.path.join(SOURCE_DIR, c)
+        if not os.path.exists(src_folder):
+            print(f"❌ Không tìm thấy thư mục: {src_folder}")
+            continue
             
-            try:
-                # 1. Đọc file (Tự động nhận diện định dạng nhờ FFmpeg)
-                audio = AudioSegment.from_file(file_path)
-                
-                # 2. Cắt khoảng lặng
-                chunks = split_on_silence(
-                    audio,
-                    min_silence_len=400,  
-                    silence_thresh=audio.dBFS - 11, 
-                    keep_silence=200
-                )
-                
-                print(f"✂️ File này cắt được {len(chunks)} đoạn. Đang lưu...")
-                
-                # 3. Lưu các đoạn đã cắt và tăng số thứ tự
-                for chunk in chunks:
-                    if len(chunk) > 500:
-                        output_file = os.path.join(dataset_folder, f"{prefix}_{total_saved:04d}.wav")
-                        
-                        # Ép chuẩn: 1 Kênh, 16000Hz, đuôi WAV
-                        chunk = chunk.set_frame_rate(16000).set_channels(1)
-                        chunk.export(output_file, format="wav")
-                        total_saved += 1
-                        
-            except Exception as e:
-                print(f"❌ Bỏ qua file '{filename}' do lỗi: {e}")
-                
-    print(f"\n🎉 HOÀN TẤT! tổng số file đã được xử lý: {total_saved}")
+        # Lấy toàn bộ file .wav và trộn ngẫu nhiên để tránh thiên lệch
+        files = [f for f in os.listdir(src_folder) if f.endswith('.wav')]
+        random.shuffle(files)
+        
+        total_files_in_class = len(files)
+        if total_files_in_class == 0:
+            continue
+            
+        # Tính toán số lượng cắt lát
+        train_count = int(total_files_in_class * TRAIN_RATIO)
+        
+        train_files = files[:train_count]
+        test_files = files[train_count:] # Phần còn lại là Test
+
+        print(f"⏳ Class '{c}': Tổng {total_files_in_class} file -> Cắt {len(train_files)} Train / {len(test_files)} Test...")
+        
+        # Copy file sang Train
+        for f in train_files:
+            shutil.copy(os.path.join(src_folder, f), os.path.join(TRAIN_DIR, c, f))
+            total_train += 1
+            
+        # Copy file sang Test
+        for f in test_files:
+            shutil.copy(os.path.join(src_folder, f), os.path.join(TEST_DIR, c, f))
+            total_test += 1
+
+    print("\n🎉 HOÀN TẤT CHIA DỮ LIỆU ĐÓNG BĂNG!")
+    print(f"✅ TỔNG SỐ FILE TRAIN: {total_train}")
+    print(f"✅ TỔNG SỐ FILE TEST:  {total_test}")
+    print("👉 Bây giờ, thư mục Train và Test đã sẵn sàng để so sánh các mạng!")
 
 if __name__ == "__main__":
-   
-    THU_MUC_CHUA_FILE_GOC = "Raw_Data" 
-    
-    # Thư mục chứa data sạch để train
-    THU_MUC_LUU_DATASET = "Dataset1/moden1"
-    
-    # Tên tiền tố
-    TEN_PREFIX = "moden"
-    
-    # Chạy máy xay
-    process_mixed_audio_folder(THU_MUC_CHUA_FILE_GOC, THU_MUC_LUU_DATASET, prefix=TEN_PREFIX)
+    prepare_dataset()

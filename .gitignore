@@ -31,8 +31,9 @@ dist-ssr
 *.sln
 *.sw?
 
-Raw_Data
+spkrec_model
 
+Google_Speech_Data
 
 #Model files
 pytorch_model.bin

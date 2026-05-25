@@ -1,80 +1,121 @@
 import os
-import time
+import json
+import torch
+import torch.nn as nn
+import librosa
+import numpy as np
 import sounddevice as sd
-import soundfile as sf
-from transformers import pipeline
-import warnings
-
-warnings.filterwarnings("ignore")
+from scipy.io.wavfile import write
 
 # ==========================================
-# CẤU HÌNH THU ÂM
+# 1. CẤU HÌNH 
 # ==========================================
-SR = 16000          # Tần số lấy mẫu chuẩn cho Whisper (16kHz)
-DURATION = 5        # Số giây thu âm mỗi lần
-TEMP_WAV = "temp_mic.wav"
+MODEL_DIR = "models/RNN_Baseline"
+N_MFCC = 40
+MAX_LEN = 100
+
+# 💡 BƯỚC 1: SỬA LẠI THÀNH MẠNG SimpleRNN (Khớp 100% với lúc Train)
+class SimpleRNN(nn.Module):
+    def __init__(self, input_size, hidden_size, num_classes):
+        super(SimpleRNN, self).__init__()
+        self.rnn = nn.RNN(input_size, hidden_size, num_layers=1, batch_first=True, nonlinearity='tanh')
+        self.fc = nn.Linear(hidden_size, num_classes)
+
+    def forward(self, x):
+        out, _ = self.rnn(x)
+        avg_out = torch.mean(out, dim=1) 
+        final_out = self.fc(avg_out)
+        return final_out
 
 # ==========================================
-# KHỞI TẠO MODEL PHO-WHISPER
+# 2. HÀM THU ÂM TRỰC TIẾP TỪ MICROPHONE
 # ==========================================
-print("Đang tải model PhoWhisper vào RAM...")
-transcriber = pipeline("automatic-speech-recognition", model="./models/PhoWhisper-medium")
-print("✅ Model đã sẵn sàng!\n")
-
-def record_audio():
-    """Hàm mở micro và thu âm"""
-    input("Bấm [ENTER] để bắt đầu nói...")
-    print(f"🎤 Đang thu âm ({DURATION} giây) - Hãy nói lệnh của bạn!")
+def record_from_mic(duration=2, fs=16000, filename="temp_mic_record.wav"):
+    print(f"\n🎙️  BẮT ĐẦU THU ÂM TRONG {duration} GIÂY...")
+    print("🗣️ Hãy nói tiếng Anh (VD: 'yes', 'no', 'stop', 'on', 'off')...")
+    print("Hoặc ngồi im để test nhãn 'noise'...")
     
-    # Mở mic thu âm
-    audio = sd.rec(int(DURATION * SR), samplerate=SR, channels=1, dtype="float32")
+    myrecording = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='int16')
     sd.wait() 
     
-    # Ghi ra file .wav tạm
-    sf.write(TEMP_WAV, audio, SR)
-    print("✅ Đã thu xong! Đang chuyển cho AI xử lý...\n")
-    return TEMP_WAV
-
-def recognize_audio(file_path):
-    """Hàm đưa file vào model để nhận diện"""
-    start_time = time.time()
-    
-    # Chạy AI
-    result = transcriber(file_path)
-    
-    end_time = time.time()
-    
-    print("=" * 40)
-    print("KẾT QUẢ NHẬN DIỆN:")
-    print(f"Câu lệnh: {result['text']}")
-    print(f"Thời gian xử lý: {round(end_time - start_time, 2)} giây")
-    print("=" * 40 + "\n")
+    print("✅ Đã ghi âm xong! Đang phân tích dữ liệu...")
+    write(filename, fs, myrecording)
+    return filename
 
 # ==========================================
-# LUỒNG CHẠY CHÍNH (MAIN LOOP)
+# 3. HÀM RÚT TRÍCH ĐẶC TRƯNG 
 # ==========================================
-if __name__ == "__main__":
+def extract_mfcc(file_path):
     try:
-        while True:
-            # 1. Thu âm
-            wav_file = record_audio()
-            
-            # 2. Nhận diện chữ
-            recognize_audio(wav_file)
-            
-            # 3. Dọn dẹp file tạm
-            if os.path.exists(TEMP_WAV):
-                os.remove(TEMP_WAV)
-                
-            # 4. Hỏi xem có muốn tiếp tục không
-            tiep_tuc = input("Nhập 'q' để thoát, hoặc bấm [ENTER] để nói câu khác: ")
-            if tiep_tuc.lower() == 'q':
-                print("Đã thoát chương trình.")
+        y, sr = librosa.load(file_path, sr=16000)
+        mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=N_MFCC).T
+        
+        # 💡 BƯỚC 2: BẮT BUỘC PHẢI CÓ DÒNG CHUẨN HÓA NÀY
+        mfcc = (mfcc - np.mean(mfcc)) / (np.std(mfcc) + 1e-8)
+        
+        if len(mfcc) > MAX_LEN:
+            mfcc = mfcc[:MAX_LEN, :]
+        else:
+            pad_width = MAX_LEN - len(mfcc)
+            mfcc = np.pad(mfcc, pad_width=((0, pad_width), (0, 0)), mode='constant')
+        return mfcc
+    except Exception as e:
+        print(f"❌ Lỗi đọc file audio: {e}")
+        return None
+
+# ==========================================
+# 4. HÀM DỰ ĐOÁN CHÍNH
+# ==========================================
+def test_model(test_file):
+    label_path = os.path.join(MODEL_DIR, "label_map.json")
+    if not os.path.exists(label_path):
+        print("❌ Chưa tìm thấy file label_map.json!")
+        return
+        
+    with open(label_path, "r", encoding="utf-8") as f:
+        class_to_idx = json.load(f)
+    idx_to_class = {v: k for k, v in class_to_idx.items()}
+
+    # Khởi tạo mô hình RNN với hidden_size=64 (giống hệt lúc train)
+    model = SimpleRNN(input_size=N_MFCC, hidden_size=64, num_classes=len(class_to_idx))
+    
+    # Load file weights của RNN
+    model_path = os.path.join(MODEL_DIR, "simple_rnn.pth")
+    model.load_state_dict(torch.load(model_path))
+    model.eval()
+
+    mfcc_data = extract_mfcc(test_file)
+    if mfcc_data is None:
+        return
+    
+    tensor_data = torch.tensor(mfcc_data, dtype=torch.float32).unsqueeze(0)
+
+    with torch.no_grad():
+        output = model(tensor_data)
+        probabilities = torch.nn.functional.softmax(output, dim=1)
+        confidence, predicted_idx = torch.max(probabilities, 1)
+        
+    result_class = idx_to_class[predicted_idx.item()]
+    confidence_score = confidence.item() * 100
+    
+    print("=" * 50)
+    print(f"🤖 AI NGHE ĐƯỢC LỆNH:  >> {result_class.upper()} <<")
+    print(f"🎯 Độ tự tin (Confidence): {confidence_score:.2f}%")
+    print("=" * 50)
+
+if __name__ == "__main__":
+    while True:
+        try:
+            # Dừng chương trình chờ bạn ấn Enter
+            ans = input("\n🔴 NHẤN [ENTER] ĐỂ THU ÂM (Gõ 'q' để thoát): ")
+            if ans.lower() == 'q':
                 break
-            print("\n")
+                
+            # Chạy hàm thu âm 2 giây
+            file_vua_thu = record_from_mic(duration=2)
+            test_model(file_vua_thu)
             
-    except KeyboardInterrupt:
-        # Bắt sự kiện người dùng bấm Ctrl+C để thoát ngang
-        print("\n👋 Đã thoát chương trình.")
-        if os.path.exists(TEMP_WAV):
-            os.remove(TEMP_WAV)
+            if os.path.exists(file_vua_thu):
+                os.remove(file_vua_thu)
+        except KeyboardInterrupt:
+            break

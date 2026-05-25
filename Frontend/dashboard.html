@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Performance Dashboard · SmartHome</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: radial-gradient(ellipse at top, #1a1025 0%, #0a0612 60%, #020104 100%);
+      min-height: 100vh; display: flex; flex-direction: column; color: #f0eaf8; overflow-x: hidden
+    }
+    body::before {
+      content: ''; position: fixed; top: -50%; left: -50%; width: 200%; height: 200%;
+      background: radial-gradient(circle at 30% 20%, rgba(124, 58, 237, .06) 0%, transparent 50%);
+      pointer-events: none; animation: drift 20s ease-in-out infinite; z-index: 0
+    }
+    @keyframes drift { 0%, 100% { transform: translate(0, 0) } 50% { transform: translate(20px, 15px) } }
+    .header {
+      position: sticky; top: 0; z-index: 100; display: flex; justify-content: space-between;
+      align-items: center; padding: 18px 40px; background: rgba(8, 4, 18, .8);
+      border-bottom: 1px solid rgba(192, 132, 252, .15); backdrop-filter: blur(20px)
+    }
+    .logo { font-size: 22px; font-weight: 800; background: linear-gradient(120deg, #c084fc, #818cf8, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text }
+    .nav-links { display: flex; gap: 6px; list-style: none }
+    .nav-links a { text-decoration: none; color: rgba(255, 255, 255, .55); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; padding: 8px 16px; border-radius: 10px; transition: all .3s }
+    .nav-links a:hover, .nav-links a.active { color: #c084fc; background: rgba(192, 132, 252, .12) }
+    .container { flex: 1; padding: 36px 40px; display: grid; grid-template-columns: 2fr 1fr; gap: 24px; max-width: 1440px; margin: 0 auto; width: 100%; position: relative; z-index: 1 }
+    .page-title { grid-column: 1/-1; font-size: 32px; font-weight: 800; background: linear-gradient(120deg, #c084fc, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-align: center; }
+    .card { background: rgba(255, 255, 255, .04); border: 1px solid rgba(192, 132, 252, .15); border-radius: 24px; padding: 28px; box-shadow: 0 20px 50px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(255, 255, 255, .05); backdrop-filter: blur(20px); transition: all .3s }
+    .card-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #a78bfa; margin-bottom: 22px }
+    .chart-wrapper { position: relative; height: 300px; margin-bottom: 16px }
+    .model-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+    .toggle-btn { padding: 12px 16px; border: none; background: rgba(124, 58, 237, .1); color: #a78bfa; border: 1px solid rgba(124, 58, 237, .25); border-radius: 12px; cursor: pointer; font-weight: 700; font-size: 12px; font-family: inherit; transition: all .3s; letter-spacing: .3px }
+    .toggle-btn.active { background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; border-color: #7c3aed; box-shadow: 0 8px 24px rgba(124, 58, 237, .4) }
+    .stats-grid { display: flex; flex-direction: column; gap: 12px; margin-top: 20px }
+    .stat-card { padding: 16px 18px; background: rgba(0, 0, 0, .25); border-radius: 14px; border: 1px solid rgba(255, 255, 255, .06); display: flex; justify-content: space-between; align-items: center; transition: all .3s }
+    .stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: rgba(255, 255, 255, .5) }
+    .stat-value { font-size: 22px; font-weight: 800; background: linear-gradient(120deg, #c084fc, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text }
+    .comparison-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px }
+    .model-item { background: rgba(0, 0, 0, .22); padding: 18px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, .07); text-align: center; transition: all .3s }
+    .model-name { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 12px; color: rgba(255, 255, 255, .7) }
+    .bar { width: 100%; height: 5px; background: rgba(255, 255, 255, .08); border-radius: 3px; overflow: hidden; margin-bottom: 10px }
+    .bar-fill { height: 100%; background: linear-gradient(90deg, #7c3aed, #c084fc); border-radius: 3px; transition: width .5s }
+    .latency-value { font-size: 20px; font-weight: 800; color: #c084fc }
+    .latency-unit { font-size: 10px; color: rgba(255, 255, 255, .4); margin-top: 2px }
+    @media(max-width:1200px) { .container { grid-template-columns: 1fr } }
+  </style>
+</head>
+
+<body>
+  <header class="header">
+    <div class="logo">🏠 SmartHome</div>
+    <ul class="nav-links">
+      <li><a href="home.html">Home</a></li>
+      <li><a href="dashboard.html" class="active">Dashboard</a></li>
+      <li><a href="assistant.html">Assistant</a></li>
+    </ul>
+  </header>
+
+  <div style="text-align: center; margin-top: 30px; z-index: 10;">
+    <button type="button" id="btnBenchmark" style="background: linear-gradient(120deg, #c084fc, #7c3aed); border: none; color: white; padding: 15px 30px; font-size: 16px; font-weight: 600; border-radius: 30px; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4);">
+      🎤 Nhấn để Bắt đầu Đo tốc độ (Thu âm 3s tiếng Anh)
+    </button>
+    <p id="benchmarkStatus" style="color: #c084fc; font-size: 14px; margin-top: 10px; height: 20px;"></p>
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <div class="card-title">Latency Comparison</div>
+      <div class="chart-wrapper"><canvas id="comparisonChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">View Controls</div>
+      <div class="model-selector">
+        <button class="toggle-btn active" data-view="bar">📊 Bar Chart</button>
+        <button class="toggle-btn" data-view="line">📈 Trend Line</button>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card"><span class="stat-label">Fastest</span><span class="stat-value" id="fastest">0 ms</span></div>
+        <div class="stat-card"><span class="stat-label">Average</span><span class="stat-value" id="average">0 ms</span></div>
+        <div class="stat-card"><span class="stat-label">Slowest</span><span class="stat-value" id="slowest">0 ms</span></div>
+      </div>
+    </div>
+
+    <div class="card" style="grid-column:1/-1">
+      <div class="card-title">All Models (Live Data)</div>
+      <div class="comparison-grid" id="comparisonGrid"></div>
+    </div>
+  </div>
+
+  <script>
+    let models = [
+      { name: 'Vanilla RNN', key: 'rnn', latency: 0, color: '#f87171' },
+      { name: 'Advanced LSTM', key: 'lstm', latency: 0, color: '#34d399' },
+      { name: 'Whisper (tiny.en)', key: 'phowhisper', latency: 0, color: '#60a5fa' }
+    ];
+    let currentView = 'bar', chart = null;
+
+    function initChart() {
+      const ctx = document.getElementById('comparisonChart').getContext('2d');
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: currentView === 'bar' ? 'bar' : 'line',
+        data: {
+          labels: models.map(m => m.name),
+          datasets: [{
+            label: 'Latency (ms)',
+            data: models.map(m => m.latency),
+            backgroundColor: models.map(m => m.color + '66'),
+            borderColor: models.map(m => m.color),
+            borderWidth: 2, borderRadius: 8, tension: .4, fill: true,
+            pointRadius: 5, pointBackgroundColor: models.map(m => m.color)
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: 'rgba(255,255,255,.75)' } } }, scales: { y: { beginAtZero: true, suggestedMax: 200, ticks: { color: 'rgba(255,255,255,.5)' }, grid: { color: 'rgba(255,255,255,.06)' } }, x: { ticks: { color: 'rgba(255,255,255,.5)' }, grid: { display: false } } } }
+      });
+    }
+
+    function initComparison() {
+      const grid = document.getElementById('comparisonGrid');
+      grid.innerHTML = '';
+      const max = Math.max(...models.map(m => m.latency), 100); 
+      models.forEach(m => {
+        const pct = (m.latency / max) * 100;
+        const el = document.createElement('div');
+        el.className = 'model-item';
+        el.innerHTML = `<div class="model-name">${m.name}</div><div class="bar"><div class="bar-fill" style="width:${pct}%;background:linear-gradient(90deg,${m.color},${m.color}99)"></div></div><div class="latency-value">${Math.round(m.latency)}</div><div class="latency-unit">milliseconds</div>`;
+        grid.appendChild(el);
+      });
+    }
+
+    function updateStats() {
+      const lat = models.map(m => m.latency);
+      if (Math.max(...lat) === 0) return; 
+      document.getElementById('fastest').textContent = Math.min(...lat) + ' ms';
+      document.getElementById('slowest').textContent = Math.max(...lat) + ' ms';
+      document.getElementById('average').textContent = Math.round(lat.reduce((a, b) => a + b) / lat.length) + ' ms';
+    }
+
+    document.querySelectorAll('.toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentView = btn.dataset.view;
+        initChart();
+      });
+    });
+
+    initChart(); initComparison();
+
+    const btnBenchmark = document.getElementById('btnBenchmark');
+    const benchmarkStatus = document.getElementById('benchmarkStatus');
+    btnBenchmark.addEventListener('click', async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream);
+        let audioChunks = [];
+
+        mediaRecorder.start();
+        btnBenchmark.innerHTML = "🔴 Đang thu âm...";
+        setTimeout(() => { mediaRecorder.stop(); stream.getTracks().forEach(t => t.stop()); }, 3000);
+        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+        mediaRecorder.onstop = async () => {
+          const formData = new FormData();
+          formData.append('audio', new Blob(audioChunks, { type: 'audio/wav' }));
+          const res = await fetch('http://127.0.0.1:5001/api/benchmark', { method: 'POST', body: formData });
+          const result = await res.json();
+          models.find(m => m.key === 'rnn').latency = result.rnn.latency;
+          models.find(m => m.key === 'lstm').latency = result.lstm.latency;
+          models.find(m => m.key === 'phowhisper').latency = result.phowhisper.latency;
+          chart.data.datasets[0].data = models.map(m => m.latency);
+          chart.update();
+          initComparison();
+          updateStats();
+          benchmarkStatus.innerHTML = `RNN: [${result.rnn.result}] | LSTM: [${result.lstm.result}] | Whisper: [${result.phowhisper.result}]`;
+          btnBenchmark.innerHTML = "🎤 Nhấn để Bắt đầu Đo tốc độ (Thu âm 3s tiếng Anh)";
+        };
+      } catch (e) { alert("Lỗi Micro!"); }
+    });
+  </script>
+</body>
+</html>

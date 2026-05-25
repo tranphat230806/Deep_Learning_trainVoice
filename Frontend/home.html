@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Smart Living Room · SmartHome</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: radial-gradient(ellipse at top, #1a1025 0%, #0a0612 60%, #020104 100%);
+      min-height: 100vh; color: #f0eaf8; display: flex; flex-direction: column; overflow-x: hidden
+    }
+    .header {
+      position: sticky; top: 0; z-index: 100; display: flex; justify-content: space-between;
+      align-items: center; padding: 18px 40px; background: rgba(8, 4, 18, .8);
+      border-bottom: 1px solid rgba(192, 132, 252, .15); backdrop-filter: blur(20px)
+    }
+    .logo {
+      font-size: 22px; font-weight: 800; background: linear-gradient(120deg, #c084fc, #818cf8, #38bdf8);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text
+    }
+    .nav-links { display: flex; gap: 6px; list-style: none }
+    .nav-links a {
+      text-decoration: none; color: rgba(255, 255, 255, .55); font-size: 12px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .8px; padding: 8px 16px; border-radius: 10px; transition: all .3s
+    }
+    .nav-links a:hover, .nav-links a.active { color: #c084fc; background: rgba(192, 132, 252, .12) }
+    .container {
+      flex: 1; display: flex; gap: 28px; padding: 36px 40px; max-width: 1440px; margin: 0 auto; width: 100%
+    }
+    .room-container { flex: 2.2; display: flex; flex-direction: column; gap: 16px }
+    .room-header {
+      font-size: 28px; font-weight: 800; background: linear-gradient(120deg, #c084fc, #818cf8);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text
+    }
+    /* 3D Room Scene */
+    .room-scene {
+      position: relative; width: 100%; aspect-ratio: 16/10; border-radius: 24px; overflow: hidden;
+      box-shadow: 0 40px 80px rgba(0, 0, 0, .7), inset 0 1px 0 rgba(255, 255, 255, .06)
+    }
+    .room-scene::after {
+      content: ''; position: absolute; inset: -15%; opacity: 0; transition: opacity .5s, background .5s;
+      pointer-events: none; z-index: 20; mix-blend-mode: screen
+    }
+    .room-scene.requesting::after {
+      background: radial-gradient(ellipse at 50% 50%, rgba(99, 179, 255, .55) 0%, transparent 65%);
+      opacity: .9; animation: scanPulse 1.4s ease-in-out infinite
+    }
+    .room-scene.access-granted::after {
+      background: radial-gradient(ellipse at 50% 50%, rgba(255, 210, 90, .6) 0%, transparent 65%); opacity: .85
+    }
+    .room-scene.access-denied::after {
+      background: radial-gradient(ellipse at 50% 50%, rgba(255, 70, 70, .55) 0%, transparent 65%); opacity: .85
+    }
+    @keyframes scanPulse {
+      0%, 100% { opacity: .3; transform: scale(1) }
+      50% { opacity: 1; transform: scale(1.05) }
+    }
+    .wall { position: absolute; inset: 0; background: linear-gradient(180deg, #2a1f3d 0%, #3a2b52 45%, #2a1f3d 100%) }
+    .wall::before {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(90deg, rgba(0, 0, 0, .35) 0%, transparent 30%, transparent 70%, rgba(0, 0, 0, .25) 100%)
+    }
+    .floor {
+      position: absolute; bottom: 0; left: 0; right: 0; height: 36%;
+      background: linear-gradient(180deg, #18102e 0%, #0e0920 100%); border-top: 1px solid rgba(192, 132, 252, .1)
+    }
+    .ceiling-light {
+      position: absolute; top: 0; left: 50%; width: 56px; height: 14px;
+      background: linear-gradient(180deg, #3a3520, #1a1810); border-radius: 0 0 10px 10px;
+      transform: translateX(-50%); z-index: 6; transition: background 0.5s, box-shadow 0.5s;
+    }
+    .room-scene.lights-on .ceiling-light {
+      background: linear-gradient(180deg, #fff8d0, #fde047);
+      box-shadow: 0 6px 24px rgba(253,224,71,.7), 0 0 40px rgba(253,224,71,.3);
+    }
+    .ceiling-glow {
+      position: absolute; top: 0; left: 50%; width: 700px; height: 500px;
+      background: radial-gradient(ellipse at 50% 0%, rgba(255, 220, 140, .5) 0%, rgba(255, 200, 80, .1) 40%, transparent 70%);
+      transform: translateX(-50%); opacity: 0; pointer-events: none; transition: opacity .6s; z-index: 3; mix-blend-mode: screen
+    }
+    .room-scene.lights-on .ceiling-glow { opacity: 1 }
+    .scan-line {
+      position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, rgba(120, 200, 255, .85), transparent);
+      top: -5%; opacity: 0; pointer-events: none; z-index: 21
+    }
+    .room-scene.requesting .scan-line { opacity: 1; animation: scanMove 1.2s linear infinite }
+    @keyframes scanMove { from { top: -5% } to { top: 110% } }
+    
+    /* Door */
+    .door-frame {
+      position: absolute; left: 5%; top: 10%; width: 115px; height: 215px;
+      background: linear-gradient(135deg, #3d2b1a, #5a3f28); border: 3px solid #2a1d0f; border-bottom: none;
+      border-radius: 5px 5px 0 0; box-shadow: inset -6px 0 12px rgba(0, 0, 0, .4), 0 12px 30px rgba(0, 0, 0, .4); z-index: 10; perspective: 600px;
+    }
+    .door-opening { position: absolute; inset: 2px 2px 0 2px; background: #060310; border-radius: 4px 4px 0 0; overflow: hidden }
+    .door-light {
+      position: absolute; top: 0; left: 115px; width: 0; height: 215px;
+      background: linear-gradient(90deg, rgba(255, 220, 140, .45), rgba(255, 200, 100, .12), transparent);
+      pointer-events: none; transition: width .8s ease; z-index: 9
+    }
+    .door-frame.open-state .door-light { width: 160px }
+    .door {
+      position: absolute; inset: 0; background: linear-gradient(160deg, #d4a574 0%, #a07855 40%, #7a5a38 100%);
+      transform-origin: left center; transform-style: preserve-3d; transition: transform 0.9s cubic-bezier(0.25, 1.4, 0.5, 1);
+      border-radius: 4px 4px 0 0; cursor: pointer; box-shadow: inset -4px 0 10px rgba(0,0,0,.4), 2px 0 8px rgba(0,0,0,.3)
+    }
+    .door.open { transform: perspective(600px) rotateY(-108deg); box-shadow: inset -4px 0 10px rgba(0,0,0,.4), -8px 0 24px rgba(0,0,0,.5) }
+    .door-knob {
+      position: absolute; right: 15px; top: 50%; width: 17px; height: 17px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #ffe068, #c8960a); box-shadow: 0 3px 8px rgba(0, 0, 0, .5); transform: translateY(-50%); z-index: 2
+    }
+
+    /* AC */
+    .ac-unit {
+      position: absolute; top: 3%; right: 5%; width: 120px; height: 28px; background: linear-gradient(180deg, #f0f4f8, #c8d4e0);
+      border-radius: 7px; border: 1px solid #94a3b8; box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5); z-index: 5;
+    }
+    .ac-led { position: absolute; right: 12px; top: 12px; width: 6px; height: 6px; border-radius: 50%; background: #475569; transition: all 0.3s; }
+    .ac-unit.on .ac-led { background: #4ade80; box-shadow: 0 0 8px #4ade80; }
+    .ac-wind { position: absolute; bottom: -40px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; opacity: 0; transition: opacity 0.5s; }
+    .ac-unit.on .ac-wind { opacity: 1; }
+    .ac-wind span { width: 2px; height: 35px; background: linear-gradient(180deg, rgba(56, 189, 248, 0.7), transparent); animation: windBlow 1s infinite linear; }
+    .ac-wind span:nth-child(2) { animation-delay: 0.2s; } .ac-wind span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes windBlow { 0% { transform: translateY(-10px); opacity: 0; } 50% { opacity: 1; } 100% { transform: translateY(20px); opacity: 0; } }
+
+    /* Fan */
+    .stand-fan { position: absolute; bottom: 36%; left: 22%; width: 58px; height: 125px; z-index: 6; }
+    .fan-base { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); width: 40px; height: 8px; background: #334155; border-radius: 20px 20px 0 0; }
+    .fan-pole { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 5px; height: 75px; background: linear-gradient(90deg, #64748b, #94a3b8, #64748b); }
+    .fan-head { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 55px; height: 55px; border-radius: 50%; border: 3px solid #1e293b; background: rgba(15, 23, 42, 0.7); display: flex; align-items: center; justify-content: center; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5); }
+    .fan-blades { position: relative; width: 45px; height: 45px; border-radius: 50%; transition: transform 0.2s; }
+    .stand-fan.on .fan-blades { animation: fanSpinFast 0.25s linear infinite; }
+    @keyframes fanSpinFast { to { transform: rotate(360deg); } }
+    .blade { position: absolute; top: 50%; left: 50%; width: 8px; height: 20px; background: #cbd5e1; border-radius: 4px; transform-origin: top center; }
+    .blade:nth-child(1) { transform: translate(-50%, 0) rotate(0deg); } .blade:nth-child(2) { transform: translate(-50%, 0) rotate(120deg); } .blade:nth-child(3) { transform: translate(-50%, 0) rotate(240deg); }
+    .fan-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 10px; height: 10px; background: #e2e8f0; border-radius: 50%; z-index: 2; }
+
+    /* Window, Couch, TV */
+    .window { position: absolute; top: 12%; right: 6%; width: 115px; height: 95px; background: linear-gradient(135deg, #1e3a5f, #2a5080); border: 3px solid #1a2d45; border-radius: 6px; overflow: hidden; box-shadow: 0 0 30px rgba(56, 189, 248, .12); }
+    .couch { position: absolute; bottom: 36%; left: 28%; width: 240px; height: 72px; background: linear-gradient(135deg, #6d3a82, #8a4ea0); border-radius: 14px 14px 4px 4px; box-shadow: 0 16px 32px rgba(0, 0, 0, .4); z-index: 5; }
+    .tv { position: absolute; top: 14%; left: 40%; transform: translateX(-50%); width: 155px; height: 90px; background: #0a0a0a; border-radius: 8px; border: 3px solid #1a1a1a; box-shadow: 0 12px 28px rgba(0, 0, 0, .6); z-index: 4; }
+    .tv-screen { position: absolute; inset: 4px; background: #000; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+    .tv-screen.on { background: linear-gradient(135deg, #0d2040, #1a3a6a); animation: tvFlicker 8s ease-in-out infinite; }
+    .tv-screen.on::after { content: '▶'; color: rgba(255, 255, 255, .5); font-size: 22px; }
+    .tv.screen-on { box-shadow: 0 0 40px rgba(56,189,248,.25), 0 12px 28px rgba(0,0,0,.6) }
+    @keyframes tvFlicker { 0%,100% { opacity:1; } 93% { opacity:.85; } 97% { opacity:.9; } }
+
+    /* Device buttons */
+    .device-controls { position: absolute; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 8px; z-index: 15 }
+    .dev-btn { width: 72px; height: 72px; border-radius: 14px; border: none; background: rgba(20, 12, 36, .75); backdrop-filter: blur(12px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; cursor: pointer; color: #fff; transition: all .3s; }
+    .dev-btn.active { background: linear-gradient(135deg, #7c3aed, #4f46e5); }
+    .dev-btn:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; filter: grayscale(0.6) }
+    .lock-overlay { position: absolute; inset: -4px; background: rgba(10, 6, 18, 0.7); backdrop-filter: blur(4px); border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20; border: 1px solid rgba(255,255,255,0.08); }
+    .lock-icon { font-size: 28px; filter: drop-shadow(0 0 8px rgba(255,100,100,0.4)) }
+    .lock-text { font-size: 9px; font-weight: 700; text-transform: uppercase; color: rgba(255,255,255,0.5) }
+    
+    .phase-indicator { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding: 10px 14px; background: rgba(0,0,0,0.25); border-radius: 10px; border: 1px solid rgba(255,255,255,0.06); font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.5) }
+    .phase-dot { width: 10px; height: 10px; border-radius: 50%; background: #f87171; box-shadow: 0 0 8px rgba(248,113,113,0.5); transition: all 0.5s ease }
+    .phase-dot.unlocked { background: #4ade80; box-shadow: 0 0 10px rgba(74,222,128,0.6) }
+    .dev-icon { font-size: 24px; } .dev-label { font-size: 9px; font-weight: 700; text-transform: uppercase; }
+
+    /* Control Panel */
+    .control-panel { flex: 1; display: flex; flex-direction: column; gap: 20px }
+    .panel-card { background: rgba(255, 255, 255, .04); border: 1px solid rgba(192, 132, 252, .15); border-radius: 24px; padding: 24px; box-shadow: 0 20px 50px rgba(0, 0, 0, .4); }
+    .panel-title { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #a78bfa; margin-bottom: 16px }
+    .device-list { display: flex; flex-direction: column; gap: 10px }
+    .device-status { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: rgba(0, 0, 0, .25); border-radius: 12px; font-size: 12px; border: 1px solid rgba(255, 255, 255, .06); }
+    .device-status.active { background: rgba(124, 58, 237, .12); border-color: rgba(167, 139, 250, .2) }
+    .device-name { display: flex; align-items: center; gap: 10px; font-weight: 600 }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, .2); }
+    .device-status.active .status-dot { background: #a78bfa; box-shadow: 0 0 10px rgba(167, 139, 250, .7) }
+    .status-val { font-size: 11px; color: rgba(255, 255, 255, .5); }
+    .device-status.active .status-val { color: #c4b5fd }
+
+    /* Waveform & Mic */
+    .waveform { display: flex; align-items: flex-end; justify-content: center; gap: 2.5px; height: 64px; margin-bottom: 14px }
+    .wave-bar { width: 3px; background: linear-gradient(180deg, #a78bfa, #7c3aed); border-radius: 2px; opacity: .25; height: 8px; transition: height .1s }
+    .wave-bar.active { opacity: 1; animation: waveAnim .5s ease-in-out }
+    @keyframes waveAnim { 0%,100% { height: 8px; opacity: .4 } 50% { height: 52px; opacity: 1 } }
+    
+    .mic-button { width: 100%; padding: 15px; border: none; background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; font-size: 14px; font-weight: 700; border-radius: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .mic-button.listening { animation: micPulse 1s infinite }
+    @keyframes micPulse { 50% { box-shadow: 0 14px 40px rgba(124, 58, 237, .65) } }
+    .cmd-display { background: rgba(0, 0, 0, .3); padding: 12px 16px; border-radius: 12px; font-size: 11px; min-height: 44px; display: flex; align-items: center; border: 1px solid rgba(255, 255, 255, .07); color: rgba(255, 255, 255, .5); margin-top: 12px }
+    .cmd-display.active { color: #c4b5fd; border-color: rgba(167, 139, 250, .25); background: rgba(124, 58, 237, .08) }
+    .cmd-display.denied { color: #fca5a5; border-color: rgba(255, 80, 80, .2); background: rgba(255, 60, 60, .06) }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo">🏠 SmartHome</div>
+    <ul class="nav-links">
+      <li><a href="home.html" class="active">Home</a></li>
+      <li><a href="dashboard.html">Dashboard</a></li>
+      <li><a href="assistant.html">Assistant</a></li>
+    </ul>
+  </header>
+
+  <div class="container">
+    <div class="room-container">
+      <h1 class="room-header">Living Room</h1>
+      <div class="room-scene" id="roomScene">
+        <div class="wall"></div>
+        <div class="ceiling-light"></div>
+        <div class="ceiling-glow"></div>
+        <div class="floor"></div>
+        <div class="scan-line"></div>
+
+        <div class="door-frame" id="doorFrame">
+          <div class="door-opening"></div>
+          <div class="door-light"></div>
+          <div class="door" id="door">
+            <div class="door-knob"></div>
+          </div>
+        </div>
+
+        <div class="ac-unit" id="acUnit">
+          <div class="ac-led"></div>
+          <div class="ac-wind"><span></span><span></span><span></span></div>
+        </div>
+
+        <div class="stand-fan" id="standFan">
+          <div class="fan-head">
+            <div class="fan-blades">
+              <div class="blade"></div><div class="blade"></div><div class="blade"></div>
+              <div class="fan-center"></div>
+            </div>
+          </div>
+          <div class="fan-pole"></div><div class="fan-base"></div>
+        </div>
+
+        <div class="window"><div class="window-cross"></div></div>
+        <div class="tv" id="tvEl"><div class="tv-screen" id="tvScreen"></div></div>
+        <div class="couch"></div>
+
+        <div class="device-controls" id="deviceControls">
+          <div class="lock-overlay" id="lockOverlay">
+            <span class="lock-icon">🔒</span><span class="lock-text">Verify first</span>
+          </div>
+          <button class="dev-btn" id="fanBtn" data-device="fan" disabled>
+            <span class="dev-icon fan-icon" id="fanIcon">🌀</span><span class="dev-label">Fan</span>
+          </button>
+          <button class="dev-btn" id="acBtn" data-device="ac" disabled>
+            <span class="dev-icon">❄️</span><span class="dev-label">AC</span>
+          </button>
+          <button class="dev-btn" id="tvBtn" data-device="tv" disabled>
+            <span class="dev-icon">📺</span><span class="dev-label">TV</span>
+          </button>
+          <button class="dev-btn" id="lightsBtn" data-device="lights" disabled>
+            <span class="dev-icon light-icon" id="lightIcon">💡</span><span class="dev-label">Light</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="control-panel">
+      <div class="panel-card">
+        <div class="panel-title">Device Status</div>
+        <div class="device-list">
+          <div class="device-status" id="ds-door"><span class="device-name"><span class="status-dot"></span>Door</span><span class="status-val" id="stat-door">Closed</span></div>
+          <div class="device-status" id="ds-fan"><span class="device-name"><span class="status-dot"></span>Fan</span><span class="status-val" id="stat-fan">Off</span></div>
+          <div class="device-status" id="ds-ac"><span class="device-name"><span class="status-dot"></span>AC</span><span class="status-val" id="stat-ac">Off</span></div>
+          <div class="device-status" id="ds-tv"><span class="device-name"><span class="status-dot"></span>TV</span><span class="status-val" id="stat-tv">Off</span></div>
+          <div class="device-status" id="ds-lights"><span class="device-name"><span class="status-dot"></span>Lights</span><span class="status-val" id="stat-lights">Off</span></div>
+        </div>
+      </div>
+
+      <div class="panel-card">
+        <div class="panel-title">Voice Control</div>
+        <div class="waveform" id="waveform"></div>
+        <button type="button" class="mic-button" id="micBtn">🎤 Verify Identity</button>
+        <div class="cmd-display" id="cmdDisplay">Speak to verify your identity and unlock the door.</div>
+        <div class="phase-indicator" id="phaseIndicator">
+          <span class="phase-dot" id="phaseDot"></span><span id="phaseText">Phase 1: Identity Verification</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const scene = document.getElementById('roomScene');
+    const door = document.getElementById('door');
+    const doorFrame = document.getElementById('doorFrame');
+    const micBtn = document.getElementById('micBtn');
+    const cmdDisplay = document.getElementById('cmdDisplay');
+    const lockOverlay = document.getElementById('lockOverlay');
+    const phaseDot = document.getElementById('phaseDot');
+    const phaseText = document.getElementById('phaseText');
+
+    const state = { door: false, fan: false, ac: false, tv: false, lights: false };
+    let glowTimer = null;
+    let isListening = false;
+    let isUnlocked = false; 
+    let failedVoiceAttempts = 0; 
+    const MAX_VOICE_ATTEMPTS = 5; 
+    const SECRET_PASSWORD = "123"; 
+
+    // ── HÀM ĐIỀU KHIỂN THIẾT BỊ ──
+    function setDevice(dev, val) {
+      state[dev] = val;
+      const dsEl = document.getElementById('ds-' + dev);
+      const stEl = document.getElementById('stat-' + dev);
+      const btn = document.getElementById(dev + 'Btn'); 
+      const on = state[dev];
+      
+      if (dsEl) dsEl.classList.toggle('active', on);
+      if (btn) btn.classList.toggle('active', on);
+
+      if (dev === 'door') {
+        if (stEl) stEl.textContent = on ? 'Open' : 'Closed';
+        door.classList.toggle('open', on);
+        doorFrame.classList.toggle('open-state', on);
+      } else {
+        if (stEl) stEl.textContent = on ? 'On' : 'Off';
+        if (dev === 'fan') {
+          document.getElementById('fanIcon').classList.toggle('spin', on);
+          document.getElementById('standFan').classList.toggle('on', on);
+        }
+        if (dev === 'ac') { 
+          document.getElementById('acUnit').classList.toggle('on', on); 
+        }
+        if (dev === 'lights') {
+          document.getElementById('lightIcon').classList.toggle('glow', on);
+          scene.classList.toggle('lights-on', on);
+        }
+        if (dev === 'tv') {
+          document.getElementById('tvScreen').classList.toggle('on', on);
+          document.getElementById('tvEl').classList.toggle('screen-on', on);
+        }
+      }
+    }
+
+    function setSceneState(s) {
+      scene.classList.remove('requesting', 'access-granted', 'access-denied');
+      if (s) scene.classList.add(s);
+    }
+
+    // ── HÀM MỞ KHÓA GIAO DIỆN CHÍNH THỨC ──
+    function unlockDevices() {
+      isUnlocked = true;
+      lockOverlay.style.display = 'none';
+      document.querySelectorAll('.dev-btn').forEach(btn => btn.disabled = false);
+      micBtn.textContent = '🎤 Voice Command';
+      phaseDot.classList.add('unlocked');
+      phaseText.textContent = 'Phase 2: Voice Commands Active';
+      cmdDisplay.textContent = '🏠 Cửa đã mở! Hãy gọi "Ê, Thông" để mở Trợ lý ảo.';
+      cmdDisplay.className = 'cmd-display active';
+
+      // CHỈ KHI MỞ KHÓA THÀNH CÔNG THÌ MỚI BẬT HỆ THỐNG NGHE NGẦM
+      activateHomeWakeword();
+    }
+
+    // ── HÀM NGHE LÉN TỪ KHÓA TẠI TRANG HOME ĐỂ CHUYỂN TRANG ──
+    function activateHomeWakeword() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) return;
+
+      const homeRecognizer = new SpeechRecognition();
+      homeRecognizer.continuous = true;
+      homeRecognizer.lang = 'vi-VN';
+      homeRecognizer.interimResults = false;
+
+      homeRecognizer.onresult = (event) => {
+        const last = event.results.length - 1;
+        const transcript = event.results[last][0].transcript.toLowerCase();
+        const triggers = ['ê thông', 'hey thông', 'nghe thông', 'này thông', 'thông ơi'];
+        
+        if (triggers.some(keyword => transcript.includes(keyword))) {
+          homeRecognizer.stop();
+          cmdDisplay.textContent = '🤖 Đang kết nối với trợ lý Thông...';
+          window.location.href = 'assistant.html?trigger=true'; // Đẩy sang trang Assistant
+        }
+      };
+
+      homeRecognizer.onend = () => {
+        // Chỉ chạy ngầm nếu đã mở khóa cửa và người dùng không đang bấm nút mic
+        if (isUnlocked && !isListening) homeRecognizer.start();
+      };
+      homeRecognizer.start();
+    }
+
+    function openSmartHome() {
+      setSceneState('access-granted');
+      setDevice('door', true);
+      setDevice('lights', true); 
+      unlockDevices(); 
+      clearTimeout(glowTimer);
+      glowTimer = setTimeout(() => setSceneState(null), 3000);
+    }
+
+    (function () {
+      const wf = document.getElementById('waveform');
+      for (let i = 0; i < 36; i++) {
+        const b = document.createElement('div');
+        b.className = 'wave-bar';
+        wf.appendChild(b);
+      }
+    })();
+
+    function animateWave() {
+      const bars = document.querySelectorAll('.wave-bar');
+      bars.forEach((b, i) => setTimeout(() => {
+        b.classList.add('active');
+        setTimeout(() => b.classList.remove('active'), 500);
+      }, i * 45));
+      if (isListening) setTimeout(animateWave, 1800);
+    }
+
+    function stopListening() {
+      isListening = false;
+      micBtn.classList.remove('listening');
+      micBtn.textContent = isUnlocked ? '🎤 Voice Command' : '🎤 Verify Identity';
+    }
+
+    // ── XỬ LÝ NHẤN NÚT MICRO CHÍNH ──
+    micBtn.addEventListener('click', () => {
+      if (isListening) return;
+      isListening = true;
+      micBtn.classList.add('listening');
+
+      if (!isUnlocked) {
+        // ==========================================
+        // PHASE 1: XÁC THỰC GIỌNG NÓI (BẢO MẬT)
+        // ==========================================
+        micBtn.textContent = '🔴 Đang nhận diện...';
+        cmdDisplay.textContent = `🎙️ Hãy nói để quét vân tay giọng nói (Lần thử: ${failedVoiceAttempts + 1}/${MAX_VOICE_ATTEMPTS})...`;
+        cmdDisplay.className = 'cmd-display active';
+        animateWave();
+        setSceneState('requesting');
+
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+            const mediaRecorder = new MediaRecorder(stream);
+            let audioChunks = [];
+            mediaRecorder.start();
+
+            setTimeout(() => {
+                mediaRecorder.stop();
+                stream.getTracks().forEach(t => t.stop());
+                cmdDisplay.textContent = '⏳ Đang phân tích sinh trắc học...';
+                micBtn.textContent = '🎤 Xử lý...';
+            }, 3000);
+
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.onstop = async () => {
+                const formData = new FormData();
+                formData.append('audio', new Blob(audioChunks, { type: 'audio/webm' }));
+
+                try {
+                    const res = await fetch('http://127.0.0.1:5000/api/verify_voice', {
+                        method: 'POST', body: formData
+                    });
+                    const data = await res.json();
+                    
+                    if (data.match === true) {
+                        failedVoiceAttempts = 0;
+                        openSmartHome(); 
+                    } else {
+                        failedVoiceAttempts++;
+                        setSceneState('access-denied');
+                        setTimeout(() => setSceneState(null), 2000);
+                        
+                        if (failedVoiceAttempts < MAX_VOICE_ATTEMPTS) {
+                            cmdDisplay.innerHTML = `⛔ Giọng nói không khớp! (Độ khớp: ${data.score}%).<br>Số lần sai: ${failedVoiceAttempts}/${MAX_VOICE_ATTEMPTS}. Hãy thử lại!`;
+                            cmdDisplay.className = 'cmd-display denied';
+                        } else {
+                            cmdDisplay.innerHTML = `⚠️ Chuyển sang chế độ nhập mật khẩu dự phòng.`;
+                            setTimeout(() => {
+                                let pass = prompt(`Đã sai ${MAX_VOICE_ATTEMPTS} lần.\nVui lòng nhập mật khẩu dự phòng (Mặc định: 123):`);
+                                if (pass === SECRET_PASSWORD) {
+                                    failedVoiceAttempts = 0;
+                                    openSmartHome();
+                                } else {
+                                    cmdDisplay.innerHTML = `❌ Từ chối truy cập: Sai mật khẩu dự phòng.`;
+                                    cmdDisplay.className = 'cmd-display denied';
+                                }
+                            }, 500);
+                        }
+                    }
+                } catch (err) {
+                    setSceneState('access-denied');
+                    cmdDisplay.textContent = '❌ Lỗi kết nối AI xác thực!';
+                    cmdDisplay.className = 'cmd-display denied';
+                } finally {
+                    stopListening();
+                }
+            };
+        }).catch(err => {
+            cmdDisplay.textContent = '❌ Lỗi Micro!';
+            stopListening();
+        });
+
+      } else {
+        // ==========================================
+        // PHASE 2: RA LỆNH ĐIỀU KHIỂN & GỌI TRỢ LÝ
+        // ==========================================
+        micBtn.textContent = '🔴 Đang nghe lệnh (3s)...';
+        cmdDisplay.textContent = '🎙️ Hãy ra lệnh ("Bật tivi", "Tắt quạt", hoặc "Ê Thông")...';
+        cmdDisplay.className = 'cmd-display active';
+        animateWave();
+
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+            const mediaRecorder = new MediaRecorder(stream);
+            let audioChunks = [];
+            mediaRecorder.start();
+
+            setTimeout(() => {
+                mediaRecorder.stop();
+                stream.getTracks().forEach(t => t.stop()); 
+                cmdDisplay.textContent = '⏳ AI đang xử lý...';
+                micBtn.textContent = '🎤 Xử lý...';
+            }, 3000);
+
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.onstop = async () => {
+                const formData = new FormData();
+                formData.append('audio', new Blob(audioChunks, { type: 'audio/webm' }));
+                try {
+                    const res = await fetch('http://127.0.0.1:5000/api/command', {
+                        method: 'POST', body: formData
+                    });
+                    const data = await res.json();
+                    cmdDisplay.innerHTML = `🗣️ Nhận diện: <b>"${data.text}"</b>`;
+
+                    // 💡 KIỂM TRA NẾU CÂU LỆNH CÓ CHỨA TỪ KHÓA GỌI TÊN THÌ CHUYỂN TRANG
+                    const textLower = data.text.toLowerCase();
+                    const triggers = ['ê thông', 'hey thông', 'nghe thông', 'này thông', 'thông ơi'];
+                    
+                    if (triggers.some(keyword => textLower.includes(keyword))) {
+                        cmdDisplay.textContent = '🤖 Đang kết nối với trợ lý Thông...';
+                        window.location.href = 'assistant.html?trigger=true';
+                        return; // Ngắt hàm tại đây, không điều khiển thiết bị nữa
+                    }
+
+                    // NẾU KHÔNG GỌI TRỢ LÝ THÌ XỬ LÝ ĐIỀU KHIỂN NHÀ NHƯ BÌNH THƯỜNG
+                    if (data.device !== "UNKNOWN" && data.action !== "UNKNOWN") {
+                        setDevice(data.device, data.action === "ON"); 
+                    } else {
+                        cmdDisplay.innerHTML += ` <span style="color:#fca5a5">(Chưa hiểu lệnh)</span>`;
+                    }
+                } catch (err) {
+                    cmdDisplay.textContent = '❌ Không kết nối được AI Điều khiển!';
+                    cmdDisplay.className = 'cmd-display denied';
+                } finally {
+                    stopListening(); // Đã sửa đúng chính tả
+                }
+            };
+        }).catch(err => {
+            cmdDisplay.textContent = '❌ Lỗi Micro!';
+            stopListening();
+        });
+      }
+    });
+
+    // Các nút bấm thủ công
+    document.querySelectorAll('.dev-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (!isUnlocked) return;
+        setDevice(btn.dataset.device, !state[btn.dataset.device]);
+      });
+    });
+
+    door.addEventListener('click', () => {
+      if (isUnlocked) setDevice('door', !state.door);
+    });
+  </script>
+</body>
+</html>
