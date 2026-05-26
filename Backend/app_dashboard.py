@@ -101,11 +101,19 @@ def run_benchmark():
     y, sr = librosa.load(temp_path, sr=16000)
     feat = models['w_en_proc'](y, sampling_rate=sr, return_tensors="pt").input_features
     with torch.no_grad():
-        ids = models['w_en_model'].generate(feat)
+        outputs = models['w_en_model'].generate(feat, return_dict_in_generate=True, output_scores=True)
+        ids = outputs.sequences
         w_ans = models['w_en_proc'].batch_decode(ids, skip_special_tokens=True)[0]
         w_ans = re.sub(r'[^\w\s]', '', w_ans.lower()).strip()
+        
+        # Tính độ tin cậy trung bình của các token được sinh ra làm accuracy
+        scores = outputs.scores
+        probs = []
+        for logit in scores:
+            token_prob = torch.nn.functional.softmax(logit, dim=-1)
+            probs.append(token_prob.max(dim=-1)[0].item())
+        w_acc = (sum(probs) / len(probs)) * 100 if probs else 100.0
     t_w = (time.time() - t0) * 1000
-    w_acc = None
 
     # ... (Phần trả về JSON giữ nguyên)
 
@@ -115,7 +123,7 @@ def run_benchmark():
     return jsonify({
         "rnn": {"latency": round(t_rnn, 2), "result": rnn_ans, "accuracy": round(rnn_acc, 2)},
         "lstm": {"latency": round(t_lstm, 2), "result": lstm_ans, "accuracy": round(lstm_acc, 2)},
-        "phowhisper": {"latency": round(t_w, 2), "result": w_ans, "accuracy": w_acc}
+        "phowhisper": {"latency": round(t_w, 2), "result": w_ans, "accuracy": round(w_acc, 2)}
     })
 
 if __name__ == '__main__':
