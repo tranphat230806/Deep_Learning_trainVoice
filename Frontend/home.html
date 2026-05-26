@@ -1226,7 +1226,11 @@
                   }
 
                   // NẾU KHÔNG GỌI TRỢ LÝ THÌ XỬ LÝ ĐIỀU KHIỂN NHÀ NHƯ BÌNH THƯỜNG
-                  if (data.device !== "UNKNOWN" && data.action !== "UNKNOWN") {
+                  if (data.commands && data.commands.length > 0) {
+                    data.commands.forEach(cmd => {
+                      setDevice(cmd.device, cmd.action === "ON");
+                    });
+                  } else if (data.device !== "UNKNOWN" && data.action !== "UNKNOWN") {
                     setDevice(data.device, data.action === "ON");
                   } else {
                     cmdDisplay.innerHTML += ` <span style="color:#fca5a5">(Chưa hiểu lệnh)</span>`;

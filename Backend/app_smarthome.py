@@ -150,20 +150,84 @@ def run_command():
         clean_text = re.sub(r'[^\w\s]', '', text).strip()
         print(f"🧹  [Lệnh đã làm sạch]: {clean_text}")
 
-        action, device = "UNKNOWN", "UNKNOWN"
-        
-        # Bắt Hành Động (Giữ nguyên IN HOA vì Frontend check action === "ON")
-        if any(w in clean_text for w in ["bật", "mở", "lên"]): action = "ON"
-        elif any(w in clean_text for w in ["tắt", "đóng"]): action = "OFF"
-            
-        # 💡 SỬA Ở ĐÂY: Bắt Thiết Bị (Viết thường và đặt tên y hệt ID của Frontend)
-        if any(w in clean_text for w in ["đèn", "sáng"]): device = "lights" # Thêm chữ s
-        elif "quạt" in clean_text: device = "fan"
-        elif any(w in clean_text for w in ["điều hòa", "điều hoà", "lạnh", "ac", "máy lạnh"]): device = "ac"
-        elif any(w in clean_text for w in ["tivi", "tv", "ti vi"]): device = "tv" # Viết thường
-        elif "cửa" in clean_text: device = "door"
+        # --- BƯỚC MỚI: PHÂN TÍCH ĐA LỆNH TRÊN CÙNG CÂU NÓI ---
+        ACTIONS = {
+            "ON": ["bật", "mở", "lên"],
+            "OFF": ["tắt", "đóng"]
+        }
+        DEVICES = {
+            "lights": ["đèn", "sáng"],
+            "fan": ["quạt"],
+            "ac": ["điều hòa", "điều hoà", "lạnh", "ac", "máy lạnh"],
+            "tv": ["tivi", "tv", "ti vi"],
+            "door": ["cửa"]
+        }
 
-        return jsonify({"text": text, "device": device, "action": action})
+        # 1. Tách chuỗi theo các liên từ/dấu câu
+        seps = [" và ", " rồi ", ", ", ","]
+        segments = [clean_text]
+        for sep in seps:
+            new_segments = []
+            for seg in segments:
+                new_segments.extend(seg.split(sep))
+            segments = new_segments
+
+        # 2. Tách nhỏ tiếp khi gặp động từ hành động khác để xử lý chuỗi "bật đèn tắt quạt"
+        action_words = ["bật", "mở", "lên", "tắt", "đóng"]
+        final_segments = []
+        for seg in segments:
+            words = seg.strip().split()
+            current_sub = []
+            for word in words:
+                if word in action_words and current_sub:
+                    final_segments.append(" ".join(current_sub))
+                    current_sub = [word]
+                else:
+                    current_sub.append(word)
+            if current_sub:
+                final_segments.append(" ".join(current_sub))
+
+        # 3. Phân tích hành động và thiết bị cho từng đoạn nhỏ
+        commands = []
+        last_action = None
+        for seg in final_segments:
+            seg_action = None
+            for act, keywords in ACTIONS.items():
+                if any(k in seg for k in keywords):
+                    seg_action = act
+                    break
+            
+            seg_devices = []
+            for dev, keywords in DEVICES.items():
+                if any(k in seg for k in keywords):
+                    seg_devices.append(dev)
+
+            if seg_devices:
+                # Nếu không tìm thấy hành động trong đoạn hiện tại, thừa kế từ hành động trước đó
+                if not seg_action:
+                    seg_action = last_action
+                if seg_action:
+                    for d in seg_devices:
+                        commands.append({"device": d, "action": seg_action})
+                    last_action = seg_action
+            else:
+                if seg_action:
+                    last_action = seg_action
+
+        # Tạo giá trị fallback để tương thích ngược với frontend cũ
+        if commands:
+            device = commands[0]["device"]
+            action = commands[0]["action"]
+        else:
+            device = "UNKNOWN"
+            action = "UNKNOWN"
+
+        return jsonify({
+            "text": text,
+            "device": device,
+            "action": action,
+            "commands": commands
+        })
     except Exception as e:
         import traceback
         traceback.print_exc() # In lỗi màu đỏ ra Terminal nếu có
