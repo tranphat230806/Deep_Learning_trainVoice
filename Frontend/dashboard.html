@@ -96,9 +96,9 @@
 
   <script>
     let models = [
-      { name: 'Vanilla RNN', key: 'rnn', latency: 0, color: '#f87171' },
-      { name: 'Advanced LSTM', key: 'lstm', latency: 0, color: '#34d399' },
-      { name: 'Whisper (tiny.en)', key: 'phowhisper', latency: 0, color: '#60a5fa' }
+      { name: 'Vanilla RNN', key: 'rnn', latency: 0, accuracy: null, color: '#f87171' },
+      { name: 'Advanced LSTM', key: 'lstm', latency: 0, accuracy: null, color: '#34d399' },
+      { name: 'Whisper (tiny.en)', key: 'phowhisper', latency: 0, accuracy: null, color: '#60a5fa' }
     ];
     let currentView = 'bar', chart = null;
 
@@ -130,7 +130,8 @@
         const pct = (m.latency / max) * 100;
         const el = document.createElement('div');
         el.className = 'model-item';
-        el.innerHTML = `<div class="model-name">${m.name}</div><div class="bar"><div class="bar-fill" style="width:${pct}%;background:linear-gradient(90deg,${m.color},${m.color}99)"></div></div><div class="latency-value">${Math.round(m.latency)}</div><div class="latency-unit">milliseconds</div>`;
+        let accStr = (m.accuracy !== null && m.accuracy !== undefined) ? `Accuracy: ${m.accuracy.toFixed(2)}%` : 'Accuracy: N/A';
+        el.innerHTML = `<div class="model-name">${m.name}</div><div class="bar"><div class="bar-fill" style="width:${pct}%;background:linear-gradient(90deg,${m.color},${m.color}99)"></div></div><div class="latency-value">${Math.round(m.latency)}</div><div class="latency-unit">milliseconds</div><div style="margin-top:8px; font-size:12px; font-weight:600; color:rgba(255,255,255,0.7);">${accStr}</div>`;
         grid.appendChild(el);
       });
     }
@@ -174,6 +175,9 @@
           models.find(m => m.key === 'rnn').latency = result.rnn.latency;
           models.find(m => m.key === 'lstm').latency = result.lstm.latency;
           models.find(m => m.key === 'phowhisper').latency = result.phowhisper.latency;
+          models.find(m => m.key === 'rnn').accuracy = result.rnn.accuracy;
+          models.find(m => m.key === 'lstm').accuracy = result.lstm.accuracy;
+          models.find(m => m.key === 'phowhisper').accuracy = result.phowhisper.accuracy;
           chart.data.datasets[0].data = models.map(m => m.latency);
           chart.update();
           initComparison();

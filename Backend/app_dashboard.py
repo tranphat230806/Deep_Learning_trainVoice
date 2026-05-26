@@ -81,13 +81,19 @@ def run_benchmark():
     # 🏎️ 1. ĐO TỐC ĐỘ RNN (Chỉ đo thời gian suy luận AI)
     t0 = time.time()
     with torch.no_grad():
-        rnn_ans = models['idx_to_class'][torch.max(models['rnn'](mfcc_data), 1)[1].item()]
+        rnn_out = models['rnn'](mfcc_data)
+        rnn_prob = torch.nn.functional.softmax(rnn_out, dim=1)
+        rnn_acc = torch.max(rnn_prob).item() * 100
+        rnn_ans = models['idx_to_class'][torch.max(rnn_out, 1)[1].item()]
     t_rnn = (time.time() - t0) * 1000
 
     # 🏎️ 2. ĐO TỐC ĐỘ LSTM (Chỉ đo thời gian suy luận AI)
     t0 = time.time()
     with torch.no_grad():
-        lstm_ans = models['idx_to_class'][torch.max(models['lstm'](mfcc_data), 1)[1].item()]
+        lstm_out = models['lstm'](mfcc_data)
+        lstm_prob = torch.nn.functional.softmax(lstm_out, dim=1)
+        lstm_acc = torch.max(lstm_prob).item() * 100
+        lstm_ans = models['idx_to_class'][torch.max(lstm_out, 1)[1].item()]
     t_lstm = (time.time() - t0) * 1000
 
     # 🏎️ 3. ĐO TỐC ĐỘ WHISPER (Nó dùng thư viện riêng nên phải đo từ đầu)
@@ -99,6 +105,7 @@ def run_benchmark():
         w_ans = models['w_en_proc'].batch_decode(ids, skip_special_tokens=True)[0]
         w_ans = re.sub(r'[^\w\s]', '', w_ans.lower()).strip()
     t_w = (time.time() - t0) * 1000
+    w_acc = None
 
     # ... (Phần trả về JSON giữ nguyên)
 
@@ -106,9 +113,9 @@ def run_benchmark():
         os.remove(temp_path)
 
     return jsonify({
-        "rnn": {"latency": round(t_rnn, 2), "result": rnn_ans},
-        "lstm": {"latency": round(t_lstm, 2), "result": lstm_ans},
-        "phowhisper": {"latency": round(t_w, 2), "result": w_ans}
+        "rnn": {"latency": round(t_rnn, 2), "result": rnn_ans, "accuracy": round(rnn_acc, 2)},
+        "lstm": {"latency": round(t_lstm, 2), "result": lstm_ans, "accuracy": round(lstm_acc, 2)},
+        "phowhisper": {"latency": round(t_w, 2), "result": w_ans, "accuracy": w_acc}
     })
 
 if __name__ == '__main__':
