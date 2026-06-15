@@ -7,13 +7,18 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Dependencies
+node_modules/
+dist/
+dist-ssr/
 *.local
 
+# Audio files (temporary or generated)
 *.wav
+*.webm
+*.mp3
 
+# Environment
 .env
 .env.local
 .env.development.local
@@ -23,7 +28,7 @@ dist-ssr
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
@@ -31,9 +36,19 @@ dist-ssr
 *.sln
 *.sw?
 
-spkrec_model
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env/
+models/
 
-Google_Speech_Data
-
-#Model files
+# Models
+Google_Speech_Data/
 pytorch_model.bin
+spkrec_model
+Dataset
+split_audio.py

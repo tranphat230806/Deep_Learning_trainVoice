@@ -1,186 +1,119 @@
 <div align="center">
 
-# Voice Verification Smart Home (RNN-Speech Recognition)
+# SmartHome Hybrid AI (Voice Recognition & Control)
 
-Nhận diện **người nói** (speaker verification) theo phong cách “smart home security”: trình duyệt ghi âm → Backend trích xuất embedding giọng nói → so sánh cosine similarity → trả về `verified` + `score`.
+Hệ thống điều khiển nhà thông minh kết hợp đa mô hình AI: **Xác thực Sinh trắc học Giọng nói**, **Điều khiển cục bộ (Local)** bằng sóng âm, và **Quản gia ảo (Cloud)** với khả năng hiểu ngôn ngữ tự nhiên.
 
-[![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-API-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
-[![React](https://img.shields.io/badge/React-UI-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![Vite](https://img.shields.io/badge/Vite-Build-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
-[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-Style-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![SpeechBrain](https://img.shields.io/badge/AI-SpeechBrain-FF5A5F?logo=ai&logoColor=white)](https://speechbrain.github.io/)
+[![HuggingFace](https://img.shields.io/badge/Model-PhoWhisper-FFD21E?logo=huggingface&logoColor=black)](https://huggingface.co/)
+[![Gemini](https://img.shields.io/badge/LLM-Gemini_Pro-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
+[![HTML5](https://img.shields.io/badge/Frontend-HTML/CSS/JS-E34F26?logo=html5&logoColor=white)](https://developer.mozilla.org/)
 
 </div>
 
 ---
 
-## Mục tiêu
+## 🌟 Kiến trúc hệ thống (Hybrid AI)
 
-- Xác thực giọng nói “chủ nhà” dựa trên **speaker embedding** (Resemblyzer `VoiceEncoder`).
-- Trả về **điểm tương đồng** (cosine similarity) và quyết định `verified` theo ngưỡng `THRESHOLD`.
-- Frontend mô phỏng bảng điều khiển nhà thông minh: chỉ mở cửa / bật đèn khi đã xác thực.
+Dự án này sử dụng mô hình AI Lai (Hybrid AI) để tối ưu hoá tốc độ và bảo mật cho Smart Home:
 
----
+1. **Xác thực Giọng nói (Voice Biometrics)**
+   - Sử dụng **SpeechBrain** (mô hình `spkrec-ecapa-voxceleb`) để trích xuất *speaker embedding* từ giọng nói.
+   - So sánh Cosine Similarity với giọng chủ nhà được thu sẵn (`my_voice/a1.wav`).
+   - Nếu độ khớp >= 80%, hệ thống mở khóa (Phase 2).
 
-## Demo luồng hoạt động (tổng quan)
+2. **Điều khiển Cục bộ (Local AI - Tốc độ cao)**
+   - Sử dụng mạng Neural Network **LSTM** nội bộ.
+   - Trích xuất đặc trưng **MFCC** bằng `librosa`.
+   - Lắng nghe liên tục, nhận diện các lệnh ngắn (Up/Down/On/Off) để điều khiển cửa, đèn, quạt, máy lạnh siêu tốc (< 1s) mà không cần Internet.
 
-```mermaid
-flowchart LR
-  A[Frontend: React/Vite
-Trình duyệt ghi âm 4s] -->|POST /verify
-multipart: audio| B[Backend: Flask]
-  B --> C[Preprocess audio
-16kHz/mono]
-  C --> D[VoiceEncoder
-Embedding]
-  D --> E[Cosine similarity
-vs. my_voice_embed]
-  E -->|>= THRESHOLD| F[verified=true]
-  E -->|< THRESHOLD| G[verified=false]
-  F --> H[UI: Access Granted]
-  G --> I[UI: Access Denied]
-```
+3. **Quản gia ảo (Cloud AI - Hiểu ngữ nghĩa)**
+   - Chuyển đổi giọng nói tiếng Việt sang văn bản (STT) siêu nhanh qua **PhoWhisper** chạy nội bộ.
+   - Gửi văn bản này cho **Google Gemini 1.5 Flash** để phân tích ngữ nghĩa (NLP).
+   - Gemini trả về JSON chứa cấu trúc phần cứng cần điều khiển (ví dụ: `{"device": "ac", "action": "on"}`) kèm câu phản hồi tự nhiên.
 
 ---
 
-## Cấu trúc thư mục
+## 📂 Cấu trúc thư mục
 
 - `Backend/`
-  - `Train.py`: Flask API `/verify` (xác thực thật bằng Resemblyzer)
-  - `app.py`: Flask API `/verify` (giả lập ngẫu nhiên để test UI nhanh)
-  - `predict.py`: chạy local, ghi âm mic → tính similarity → in kết quả
-  - `convert_voice.py`: chuẩn hoá audio (mono/16kHz/16-bit) bằng pydub
-- `Data/`
-  - `my_voice/`: giọng “chủ nhà” dùng để enroll (tính trung bình embedding)
-  - `dataset_kaggle/`: dữ liệu tham khảo nhiều người (Nguoi1..Nguoi5, other)
-- `Fontend/smart_home_web/`
-  - React + Vite + Tailwind UI “JARVIS HOME AI”
+  - `app_smarthome.py`: File chính chạy Flask Server (API), tải tất cả các mô hình AI.
+  - `models/`: Thư mục chứa các weights AI.
+    - `LSTM_Advanced/`: File pth và mapping label cho mô hình LSTM Local.
+    - `spkrec_model/`: Mô hình nhận diện giọng nói của SpeechBrain.
+    - `whisper-small/`: Mô hình PhoWhisper (đã được tải về máy).
+  - `my_voice/`: Chứa file `a1.wav` lưu trữ mẫu giọng chủ nhà để đối chiếu.
+- `Frontend/`
+  - `home.html`: Giao diện Smart Home trực quan (Vanilla HTML/CSS/JS kết hợp TailwindCSS từ CDN), có mô phỏng phòng khách 3D và giao diện Chat.
+  - `dashboard.html`: Giao diện báo cáo kết quả đánh giá mô hình.
+- `.env`: File chứa API Key của Google Gemini.
 
 ---
 
-## Chạy nhanh (Windows)
+## 🚀 Hướng dẫn cài đặt & Chạy dự án
 
-### 1) Backend (API xác thực giọng nói)
+### 1) Thiết lập Backend (Flask API)
 
-> API mặc định chạy tại `http://localhost:5000`.
+> API mặc định chạy tại `http://localhost:5002`.
 
-Tạo môi trường và cài gói (gợi ý):
+Tạo môi trường ảo và cài đặt các thư viện cần thiết:
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -U pip
-pip install flask flask-cors numpy resemblyzer soundfile
+cd Backend
+python -m venv venv
+venv\Scripts\activate
+
+# Cài đặt thư viện
+pip install flask flask-cors python-dotenv torch torchvision torchaudio numpy librosa soundfile transformers speechbrain google-genai google-generativeai
 ```
 
-Chạy API “xác thực thật”:
+**Cấu hình biến môi trường:**
+Tạo file `.env` ở trong thư mục `Backend/` với nội dung:
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+```
 
+**Chạy Server:**
 ```bash
-python Backend\Train.py
+python app_smarthome.py
 ```
+> **Lưu ý:** Lần đầu chạy, hệ thống sẽ tự động tải các mô hình `SpeechBrain` và `PhoWhisper` từ Hugging Face nếu chúng chưa có trong thư mục `models/`. Xin kiên nhẫn.
 
-Nếu chỉ muốn demo UI (không cần AI), chạy bản mock:
+### 2) Khởi động Frontend (Giao diện)
 
-```bash
-python Backend\app.py
-```
-
-### 2) Frontend (UI)
-
-```bash
-cd Fontend\smart_home_web
-npm install
-npm run dev
-```
-
-Mở URL Vite in ra trong terminal (thường là `http://localhost:5173`).
+Dự án Frontend được code thuần (Vanilla) nên bạn **không cần cài đặt Node.js hay build code**. 
+Chỉ cần mở file `Frontend/home.html` bằng trình duyệt (hoặc dùng tiện ích *Live Server* trong VSCode) là có thể sử dụng ngay.
 
 ---
 
-## API
+## 🔌 Danh sách API chính
 
-### `POST /verify`
+- `POST /api/verify_voice`: 
+  - Input: FormData chứa file audio (key `audio`).
+  - Logic: SpeechBrain quét và đối chiếu với file gốc `my_voice/a1.wav`.
+  - Output: `{"match": true/false, "score": 85}`
 
-- Content-Type: `multipart/form-data`
-- Field: `audio` (file)
-- Response (JSON):
+- `POST /api/local_command`:
+  - Input: FormData chứa file audio (key `audio`).
+  - Logic: Trích xuất MFCC, LSTM dự đoán lệnh ngắn.
+  - Output: `{"status": "success", "intent": "on", "confidence": 95.5}`
 
-```json
-{ "verified": true, "score": 0.8123 }
-```
-
-`score` là cosine similarity:
-
-$$
-\text{score} = \frac{\langle e_{my}, e_{test} \rangle}{\|e_{my}\|\,\|e_{test}\|}
-$$
-
-Ngưỡng hiện tại: `THRESHOLD = 0.78`.
+- `POST /api/cloud_command`:
+  - Input: FormData chứa file audio (key `audio`).
+  - Logic: PhoWhisper (Vi -> En) -> Text -> Gemini (LLM) -> JSON.
+  - Output: `{"status": "success", "transcription": "...", "ai_response": {"hardware_command": {...}, "speech_reply": "..."}}`
 
 ---
 
-## Enroll giọng “chủ nhà” (my_voice)
+## ⚠️ Ghi chú quan trọng
 
-Backend sẽ đọc các file trong thư mục `Data/my_voice/`, trích embedding từng file, rồi lấy **trung bình**:
-
-- Input: nhiều file `.wav`
-- Output: `my_voice_embed = mean(embeds)`
-
-Gợi ý chuẩn dữ liệu:
-- 16kHz, mono
-- 2–5 giây/đoạn
-- Nhiều đoạn ở môi trường khác nhau để tăng độ ổn định
+- **Lỗi `WinError 1314` khi nạp SpeechBrain**: Dự án đã được fix bằng cách ép sử dụng `LocalStrategy.COPY` thay vì Symlink mặc định, không còn yêu cầu quyền Admin trên Windows.
+- **Microphone**: Frontend bắt buộc phải chạy qua giao thức `http://localhost` hoặc `https://` thì trình duyệt mới cấp quyền truy cập Microphone.
 
 ---
 
-## Script tiện ích
+## 📝 Giấy phép
 
-<details>
-<summary><b>convert_voice.py (chuẩn hoá audio)</b></summary>
-
-Chạy để convert `.wav/.mp3/.m4a` → `_fixed.wav` theo chuẩn mono/16kHz/16-bit.
-
-```bash
-pip install pydub
-python Backend\convert_voice.py
-```
-
-Lưu ý: pydub thường cần `ffmpeg` trong PATH để đọc/ghi một số định dạng.
-
-</details>
-
-<details>
-<summary><b>predict.py (test nhanh bằng microphone)</b></summary>
-
-Ghi âm mic 4 giây và tự verify tại máy:
-
-```bash
-pip install sounddevice soundfile
-python Backend\predict.py
-```
-
-Lưu ý: `sounddevice` có thể cần cấu hình driver/PortAudio tuỳ máy.
-
-</details>
-
----
-
-## Ghi chú quan trọng (để chạy trơn tru)
-
-- **Đường dẫn dữ liệu đang hard-code** trong `Backend/Train.py` và `Backend/predict.py` (`MY_FOLDER = r"E:\..."`). Nếu chạy trong repo này, hãy sửa `MY_FOLDER` trỏ về `Data\\my_voice` (đường dẫn tuyệt đối hoặc tương đối tuỳ cách chạy).
-- Frontend hiện ghi âm dạng `audio/webm` và gửi lên API. Trong khi `Train.py` xử lý tốt nhất với `.wav`. Nếu API báo lỗi decode/không ra kết quả, bạn cần bước chuyển đổi (webm → wav) hoặc đổi cách ghi âm/định dạng.
-- `Backend/app.py` là bản **mock** (random True/False) để test giao diện, không phản ánh model.
-
----
-
-## Công nghệ sử dụng
-
-- Backend: Flask + Flask-CORS
-- Voice model: Resemblyzer `VoiceEncoder` (speaker embedding)
-- Frontend: React + Vite + TailwindCSS + lucide-react
-
----
-
-## Tác giả / ghi công
-
-Dự án học tập về xác thực giọng nói và tích hợp UI smart home.
+Dự án phục vụ mục đích học tập và nghiên cứu mô hình Deep Learning trong điều khiển thiết bị IoT (Smart Home).
