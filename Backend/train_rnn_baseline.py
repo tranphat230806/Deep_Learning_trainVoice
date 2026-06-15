@@ -7,12 +7,15 @@ from torch.utils.data import Dataset, DataLoader
 import librosa
 import numpy as np
 import matplotlib.pyplot as plt 
+import seaborn as sns
+from sklearn.metrics import confusion_matrix, classification_report
 
 # ==========================================
 # 1. CẤU HÌNH SIÊU THAM SỐ
 # ==========================================
 TRAIN_DIR = "Dataset/Train"
-TEST_DIR = "Dataset/Test"
+VAL_DIR = "Dataset/Val"       # 💡 Đã thêm tập Validation
+TEST_DIR = "Dataset/Test"     # 💡 Tập Test độc lập
 MODEL_DIR = "models/RNN_Baseline"
 EPOCHS = 30           
 BATCH_SIZE = 64       
@@ -37,145 +40,146 @@ def extract_mfcc(file_path):
             pad_width = MAX_LEN - len(mfcc)
             mfcc = np.pad(mfcc, pad_width=((0, pad_width), (0, 0)), mode='constant')
         return mfcc
-    except Exception:
+    except Exception as e:
+        print(f"Lỗi đọc file {file_path}: {e}")
         return None
 
 class SpeechDataset(Dataset):
-    def __init__(self, data_dir, class_mapping=None):
-        self.features = []
+    def __init__(self, data_dir, class_to_idx):
+        self.data_dir = data_dir
+        self.class_to_idx = class_to_idx
+        self.file_paths = []
         self.labels = []
         
-        self.classes = sorted([d for d in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, d))])
-        self.class_to_idx = class_mapping if class_mapping else {cls_name: i for i, cls_name in enumerate(self.classes)}
-        
-        print(f"🔍 Đang nạp dữ liệu từ: {data_dir}...")
-        for cls_name in self.classes:
-            folder_path = os.path.join(data_dir, cls_name)
-            label_idx = self.class_to_idx[cls_name]
-            
-            for file_name in os.listdir(folder_path):
+        for label_name in os.listdir(data_dir):
+            label_dir = os.path.join(data_dir, label_name)
+            if not os.path.isdir(label_dir) or label_name not in class_to_idx:
+                continue
+            for file_name in os.listdir(label_dir):
                 if file_name.endswith('.wav'):
-                    file_path = os.path.join(folder_path, file_name)
-                    mfcc_data = extract_mfcc(file_path)
-                    
-                    if mfcc_data is not None:
-                        self.features.append(mfcc_data)
-                        self.labels.append(label_idx)
-                        
-        self.features = np.array(self.features)
-        self.labels = np.array(self.labels)
-        print(f"✅ Tải thành công {len(self.labels)} file âm thanh!")
+                    self.file_paths.append(os.path.join(label_dir, file_name))
+                    self.labels.append(class_to_idx[label_name])
 
     def __len__(self):
-        return len(self.labels)
+        return len(self.file_paths)
 
     def __getitem__(self, idx):
-        return torch.tensor(self.features[idx], dtype=torch.float32), torch.tensor(self.labels[idx], dtype=torch.long)
+        mfcc = extract_mfcc(self.file_paths[idx])
+        if mfcc is None: mfcc = np.zeros((MAX_LEN, N_MFCC))
+        label = self.labels[idx]
+        return torch.tensor(mfcc, dtype=torch.float32), torch.tensor(label, dtype=torch.long)
+
+# Tự động mapping nhãn (Quét từ tập Train)
+classes = sorted([d for d in os.listdir(TRAIN_DIR) if os.path.isdir(os.path.join(TRAIN_DIR, d))])
+class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
+idx_to_class = {i: cls_name for cls_name, i in class_to_idx.items()}
+with open(os.path.join(MODEL_DIR, "label_map.json"), "w", encoding="utf-8") as f:
+    json.dump(class_to_idx, f, ensure_ascii=False, indent=4)
+
+# Load 3 tập dữ liệu riêng biệt
+train_dataset = SpeechDataset(TRAIN_DIR, class_to_idx)
+val_dataset = SpeechDataset(VAL_DIR, class_to_idx)
+test_dataset = SpeechDataset(TEST_DIR, class_to_idx)
+
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 # ==========================================
-# 3. MẠNG RNN ĐƠN GIẢN (VANILLA RNN)
+# 3. MÔ HÌNH VANILLA RNN
 # ==========================================
 class SimpleRNN(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes):
         super(SimpleRNN, self).__init__()
         self.rnn = nn.RNN(input_size, hidden_size, num_layers=1, batch_first=True, nonlinearity='tanh')
         self.fc = nn.Linear(hidden_size, num_classes)
-
+        
     def forward(self, x):
         out, _ = self.rnn(x)
-        avg_out = torch.mean(out, dim=1) 
-        final_out = self.fc(avg_out)
-        return final_out
+        out = torch.mean(out, dim=1) 
+        return self.fc(out)
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = SimpleRNN(input_size=N_MFCC, hidden_size=64, num_classes=len(classes)).to(device)
+
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 # ==========================================
-# 4. HUẤN LUYỆN VÀ VẼ BIỂU ĐỒ
+# 4. VÒNG LẶP HUẤN LUYỆN (Sử dụng tập VAL)
 # ==========================================
-def run_baseline():
-    print("-" * 50)
-    print("🧠 BƯỚC 1: CHUẨN BỊ TẬP DỮ LIỆU TRAIN & TEST")
-    train_dataset = SpeechDataset(TRAIN_DIR)
-    test_dataset = SpeechDataset(TEST_DIR, class_mapping=train_dataset.class_to_idx)
-    
-    with open(os.path.join(MODEL_DIR, "label_map.json"), "w", encoding="utf-8") as f:
-        json.dump(train_dataset.class_to_idx, f, ensure_ascii=False, indent=4)
+history_loss, history_acc = [], []
+print(f"🚀 Bắt đầu huấn luyện Vanilla RNN trên {device}...")
 
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
-
-    model = SimpleRNN(input_size=N_MFCC, hidden_size=64, num_classes=len(train_dataset.classes))
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
-
-    # 💡 Biến lưu trữ lịch sử để vẽ biểu đồ
-    history_loss = []
-    history_acc = []
-
-    print("\n" + "="*50)
-    print("🚀 BẮT ĐẦU HUẤN LUYỆN MẠNG RNN...")
-    for epoch in range(EPOCHS):
-        model.train()
-        total_loss = 0
+for epoch in range(EPOCHS):
+    model.train()
+    total_loss = 0
+    for batch_features, batch_labels in train_loader:
+        batch_features, batch_labels = batch_features.to(device), batch_labels.to(device)
+        optimizer.zero_grad()
+        outputs = model(batch_features)
+        loss = criterion(outputs, batch_labels)
+        loss.backward()
+        optimizer.step()
+        total_loss += loss.item()
         
-        # 1. Quá trình Học (Train)
-        for batch_features, batch_labels in train_loader:
-            optimizer.zero_grad() 
+    avg_loss = total_loss / len(train_loader)
+    history_loss.append(avg_loss)
+    
+    # 💡 Đánh giá trên tập Validation sau mỗi Epoch
+    model.eval()
+    correct, total = 0, 0
+    with torch.no_grad():
+        for batch_features, batch_labels in val_loader:
+            batch_features, batch_labels = batch_features.to(device), batch_labels.to(device)
             outputs = model(batch_features)
-            loss = criterion(outputs, batch_labels)
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            total += batch_labels.size(0)
+            correct += (predicted == batch_labels).sum().item()
             
-        avg_loss = total_loss / len(train_loader)
-        history_loss.append(avg_loss)
+    epoch_acc = 100 * correct / total
+    history_acc.append(epoch_acc)
+    print(f"Epoch [{epoch+1:02d}/{EPOCHS}] - Train Loss: {avg_loss:.4f} - Val Acc: {epoch_acc:.2f}%")
 
-        # 2. Quá trình Thi thử luôn (Validation/Test)
-        model.eval()
-        correct = 0
-        total = 0
-        with torch.no_grad():
-            for batch_features, batch_labels in test_loader:
-                outputs = model(batch_features)
-                _, predicted = torch.max(outputs.data, 1)
-                total += batch_labels.size(0)
-                correct += (predicted == batch_labels).sum().item()
-                
-        epoch_acc = 100 * correct / total
-        history_acc.append(epoch_acc)
-            
-        print(f"Epoch [{epoch+1:02d}/{EPOCHS}] - Loss: {avg_loss:.4f} - Test Accuracy: {epoch_acc:.2f}%")
+torch.save(model.state_dict(), os.path.join(MODEL_DIR, "simple_rnn.pth"))
 
-    # Lưu mô hình
-    torch.save(model.state_dict(), os.path.join(MODEL_DIR, "simple_rnn.pth"))
-    
-    # ====================================================
-    # 🎨 BƯỚC 5: VẼ VÀ LƯU BIỂU ĐỒ (DÀNH CHO BÁO CÁO)
-    # ====================================================
-    print("\n📈 Đang vẽ biểu đồ huấn luyện...")
-    plt.figure(figsize=(12, 5))
-    
-    # Biểu đồ 1: Loss
-    plt.subplot(1, 2, 1)
-    plt.plot(range(1, EPOCHS+1), history_loss, marker='o', color='red', label='Train Loss')
-    plt.title("Biểu đồ Suy giảm Sai số (Loss)")
-    plt.xlabel("Vòng lặp (Epochs)")
-    plt.ylabel("Mức độ sai lệch")
-    plt.grid(True)
-    plt.legend()
-    
-    # Biểu đồ 2: Accuracy
-    plt.subplot(1, 2, 2)
-    plt.plot(range(1, EPOCHS+1), history_acc, marker='s', color='blue', label='Test Accuracy')
-    plt.title("Biểu đồ Tăng trưởng Độ chính xác (Accuracy)")
-    plt.xlabel("Vòng lặp (Epochs)")
-    plt.ylabel("Độ chính xác (%)")
-    plt.grid(True)
-    plt.legend()
-    
-    # Lưu file ảnh
-    plot_path = os.path.join(MODEL_DIR, "training_chart.png")
-    plt.tight_layout()
-    plt.savefig(plot_path)
-    print(f"🎉 HOÀN TẤT! Đã lưu biểu đồ tuyệt đẹp tại: {plot_path}")
+# ====================================================
+# 5. VẼ BIỂU ĐỒ & ĐÁNH GIÁ TRÊN TẬP TEST KÍN (TEST_DIR)
+# ====================================================
+print("\n📈 Đang vẽ biểu đồ huấn luyện và chấm điểm trên tập Test...")
 
-if __name__ == "__main__":
-    run_baseline()
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+plt.plot(range(1, EPOCHS+1), history_loss, marker='o', color='red', label='Train Loss')
+plt.title("Biểu đồ Suy giảm Sai số (RNN)")
+plt.xlabel("Epochs"); plt.grid(True); plt.legend()
+
+plt.subplot(1, 2, 2)
+plt.plot(range(1, EPOCHS+1), history_acc, marker='s', color='blue', label='Val Accuracy')
+plt.title("Biểu đồ Độ chính xác (RNN)")
+plt.xlabel("Epochs"); plt.grid(True); plt.legend()
+plt.savefig(os.path.join(MODEL_DIR, "rnn_training_chart.png"))
+
+# Chấm điểm cuối cùng trên tập Test
+model.eval()
+all_preds, all_labels = [], []
+with torch.no_grad():
+    for batch_features, batch_labels in test_loader:
+        batch_features = batch_features.to(device)
+        outputs = model(batch_features)
+        _, predicted = torch.max(outputs.data, 1)
+        all_preds.extend(predicted.cpu().numpy())
+        all_labels.extend(batch_labels.numpy())
+
+print("\n📊 BÁO CÁO PHÂN LOẠI TRÊN TẬP TEST (RNN):")
+print(classification_report(all_labels, all_preds, target_names=classes))
+
+# Vẽ Ma trận nhầm lẫn
+cm = confusion_matrix(all_labels, all_preds)
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Reds', xticklabels=classes, yticklabels=classes)
+plt.title("Ma trận nhầm lẫn - Confusion Matrix (RNN)")
+plt.ylabel('Nhãn Thực tế')
+plt.xlabel('Nhãn Dự đoán')
+plt.savefig(os.path.join(MODEL_DIR, "rnn_confusion_matrix.png"))
+print(f"✅ Hoàn tất! Ảnh lưu tại {MODEL_DIR}/")

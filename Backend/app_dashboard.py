@@ -5,11 +5,9 @@ import torch
 import torch.nn as nn
 import librosa
 import numpy as np
-import re
 import tempfile
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from transformers import WhisperProcessor, WhisperForConditionalGeneration
 
 app = Flask(__name__)
 CORS(app)
@@ -37,31 +35,21 @@ class SpeechLSTM(nn.Module):
         return self.fc(torch.mean(lstm_out, dim=1))
 
 def load_dashboard_models():
-    print("⏳ [API 1] Đang nạp các mô hình Tiếng Anh phục vụ Đua tốc độ...")
+    print("⏳ [API Dashboard] Đang nạp mô hình RNN và LSTM...")
     with open("models/RNN_Baseline/label_map.json", "r", encoding="utf-8") as f:
         class_to_idx = json.load(f)
     models['idx_to_class'] = {v: k for k, v in class_to_idx.items()}
+    num_classes = len(class_to_idx)
 
-    models['rnn'] = SimpleRNN(N_MFCC, 64, len(class_to_idx))
-    models['rnn'].load_state_dict(torch.load("models/RNN_Baseline/simple_rnn.pth", weights_only=True))
+    models['rnn'] = SimpleRNN(N_MFCC, 64, num_classes)
+    models['rnn'].load_state_dict(torch.load("models/RNN_Baseline/simple_rnn.pth", map_location='cpu', weights_only=True))
     models['rnn'].eval()
 
-    models['lstm'] = SpeechLSTM(N_MFCC, 128, len(class_to_idx))
-    models['lstm'].load_state_dict(torch.load("models/LSTM_Advanced/speech_lstm.pth", weights_only=True))
+    models['lstm'] = SpeechLSTM(N_MFCC, 128, num_classes)
+    models['lstm'].load_state_dict(torch.load("models/LSTM_Advanced/speech_lstm.pth", map_location='cpu', weights_only=True))
     models['lstm'].eval()
-
-    models['w_en_proc'] = WhisperProcessor.from_pretrained("openai/whisper-tiny.en")
-    models['w_en_model'] = WhisperForConditionalGeneration.from_pretrained("openai/whisper-tiny.en")
-    models['w_en_model'].eval()
-    print("✅ [API 1] Đã nạp xong RNN, LSTM, Whisper-tiny.en!")
-
-def extract_mfcc(file_path):
-    y, sr = librosa.load(file_path, sr=16000)
-    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=N_MFCC).T
-    mfcc = (mfcc - np.mean(mfcc)) / (np.std(mfcc) + 1e-8)
-    if len(mfcc) > MAX_LEN: mfcc = mfcc[:MAX_LEN, :]
-    else: mfcc = np.pad(mfcc, pad_width=((0, MAX_LEN - len(mfcc)), (0, 0)), mode='constant')
-    return torch.tensor(mfcc, dtype=torch.float32).unsqueeze(0)
+    
+    print(f"✅ Đã nạp xong!")
 
 @app.route('/api/benchmark', methods=['POST'])
 def run_benchmark():
@@ -73,42 +61,100 @@ def run_benchmark():
     temp_path = os.path.join(temp_dir, "temp_dashboard_bench.wav")
     audio_file.save(temp_path)
     
-    # ==========================================
-    # TIỀN XỬ LÝ (Trích xuất đặc trưng chung, KHÔNG BẤM GIỜ)
-    # ==========================================
-    mfcc_data = extract_mfcc(temp_path)
+    y, sr = librosa.load(temp_path, sr=16000)
+    y_trimmed, _ = librosa.effects.trim(y, top_db=20)
+    
+    # 1. TRÍCH XUẤT CHO TOÀN BỘ CÂU (TỔNG THỂ)
+    mfcc_full = librosa.feature.mfcc(y=y_trimmed, sr=sr, n_mfcc=N_MFCC).T
+    mfcc_full = (mfcc_full - np.mean(mfcc_full)) / (np.std(mfcc_full) + 1e-8)
+    if len(mfcc_full) > MAX_LEN: mfcc_full = mfcc_full[:MAX_LEN, :]
+    else: mfcc_full = np.pad(mfcc_full, pad_width=((0, MAX_LEN - len(mfcc_full)), (0, 0)), mode='constant')
+    tensor_full = torch.tensor(mfcc_full, dtype=torch.float32).unsqueeze(0)
 
-    # 🏎️ 1. ĐO TỐC ĐỘ RNN (Chỉ đo thời gian suy luận AI)
+    # 2. CẮT LÁT THỜI GIAN (SLIDING WINDOW)
+    window_size = 16000 
+    step_size = 16000   
+    
+    timeline_lstm = []
+    timeline_rnn = [] 
+    
+    for start in range(0, len(y_trimmed), step_size):
+        end = start + window_size
+        y_window = y_trimmed[start:end]
+        
+        if len(y_window) < 16000 * 0.2: 
+            continue
+            
+        time_label = f"{start/16000:.1f}s - {end/16000:.1f}s"
+        
+        mfcc_win = librosa.feature.mfcc(y=y_window, sr=sr, n_mfcc=N_MFCC).T
+        mfcc_win = (mfcc_win - np.mean(mfcc_win)) / (np.std(mfcc_win) + 1e-8)
+        if len(mfcc_win) > MAX_LEN: mfcc_win = mfcc_win[:MAX_LEN, :]
+        else: mfcc_win = np.pad(mfcc_win, pad_width=((0, MAX_LEN - len(mfcc_win)), (0, 0)), mode='constant')
+        tensor_win = torch.tensor(mfcc_win, dtype=torch.float32).unsqueeze(0)
+        
+        with torch.no_grad():
+            rnn_win_out = models['rnn'](tensor_win)
+            rnn_win_prob = torch.nn.functional.softmax(rnn_win_out, dim=1).squeeze(0)
+            r_idx = torch.argmax(rnn_win_prob).item()
+            timeline_rnn.append({
+                "time": time_label,
+                "predicted": models['idx_to_class'][r_idx],
+                "confidence": round(rnn_win_prob[r_idx].item() * 100, 1)
+            })
+
+        with torch.no_grad():
+            lstm_win_out = models['lstm'](tensor_win)
+            lstm_win_prob = torch.nn.functional.softmax(lstm_win_out, dim=1).squeeze(0)
+            l_idx = torch.argmax(lstm_win_prob).item()
+            timeline_lstm.append({
+                "time": time_label,
+                "predicted": models['idx_to_class'][l_idx],
+                "confidence": round(lstm_win_prob[l_idx].item() * 100, 1)
+            })
+
+    with torch.no_grad():
+        _ = models['rnn'](tensor_full)
+        _ = models['lstm'](tensor_full)
+
     t0 = time.time()
     with torch.no_grad():
-        rnn_ans = models['idx_to_class'][torch.max(models['rnn'](mfcc_data), 1)[1].item()]
+        rnn_out = models['rnn'](tensor_full)
+        rnn_prob = torch.nn.functional.softmax(rnn_out, dim=1).squeeze(0)
+        rnn_ans = models['idx_to_class'][torch.argmax(rnn_prob).item()]
+        rnn_probs_dict = {models['idx_to_class'][i]: round(rnn_prob[i].item() * 100, 2) for i in range(len(rnn_prob))}
     t_rnn = (time.time() - t0) * 1000
 
-    # 🏎️ 2. ĐO TỐC ĐỘ LSTM (Chỉ đo thời gian suy luận AI)
     t0 = time.time()
     with torch.no_grad():
-        lstm_ans = models['idx_to_class'][torch.max(models['lstm'](mfcc_data), 1)[1].item()]
+        lstm_out = models['lstm'](tensor_full)
+        lstm_prob = torch.nn.functional.softmax(lstm_out, dim=1).squeeze(0)
+        lstm_ans = models['idx_to_class'][torch.argmax(lstm_prob).item()]
+        lstm_probs_dict = {models['idx_to_class'][i]: round(lstm_prob[i].item() * 100, 2) for i in range(len(lstm_prob))}
     t_lstm = (time.time() - t0) * 1000
 
-    # 🏎️ 3. ĐO TỐC ĐỘ WHISPER (Nó dùng thư viện riêng nên phải đo từ đầu)
-    t0 = time.time()
-    y, sr = librosa.load(temp_path, sr=16000)
-    feat = models['w_en_proc'](y, sampling_rate=sr, return_tensors="pt").input_features
-    with torch.no_grad():
-        ids = models['w_en_model'].generate(feat)
-        w_ans = models['w_en_proc'].batch_decode(ids, skip_special_tokens=True)[0]
-        w_ans = re.sub(r'[^\w\s]', '', w_ans.lower()).strip()
-    t_w = (time.time() - t0) * 1000
+    # ==============================================================
+    # 💡 BẢN VÁ LỖI: GHI ĐÈ KẾT QUẢ TỪ CỬA SỔ TRƯỢT LÊN TRÊN CÙNG
+    # ==============================================================
+    def get_best_window_intent(timeline, default_ans):
+        # Lọc ra các từ khóa (khác noise) có độ tự tin >= 80%
+        valid_steps = [s for s in timeline if s['predicted'] != 'noise' and s['confidence'] >= 80.0]
+        if valid_steps:
+            # Nếu có, lấy kết quả tự tin nhất vứt lên làm kết quả cuối cùng
+            best_step = max(valid_steps, key=lambda x: x['confidence'])
+            return best_step['predicted']
+        return default_ans
 
-    # ... (Phần trả về JSON giữ nguyên)
+    # Áp dụng hàm vừa viết
+    final_rnn_ans = get_best_window_intent(timeline_rnn, rnn_ans)
+    final_lstm_ans = get_best_window_intent(timeline_lstm, lstm_ans)
 
     if os.path.exists(temp_path):
         os.remove(temp_path)
 
     return jsonify({
-        "rnn": {"latency": round(t_rnn, 2), "result": rnn_ans},
-        "lstm": {"latency": round(t_lstm, 2), "result": lstm_ans},
-        "phowhisper": {"latency": round(t_w, 2), "result": w_ans}
+        "rnn": {"latency": round(t_rnn, 2), "result": final_rnn_ans, "probs": rnn_probs_dict, "timeline": timeline_rnn},
+        "lstm": {"latency": round(t_lstm, 2), "result": final_lstm_ans, "probs": lstm_probs_dict, "timeline": timeline_lstm}
     })
 
 if __name__ == '__main__':
