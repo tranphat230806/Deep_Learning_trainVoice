@@ -1,8 +1,7 @@
 {
-    "no": 0,
+    "down": 0,
     "noise": 1,
     "off": 2,
     "on": 3,
-    "stop": 4,
-    "yes": 5
+    "up": 4
 }

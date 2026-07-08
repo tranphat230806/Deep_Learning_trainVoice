@@ -1,192 +1,281 @@
 <!doctype html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Performance Dashboard · SmartHome</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <title>Research Dashboard · SmartHome AI</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-    * { margin: 0; padding: 0; box-sizing: border-box }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: 'Inter', sans-serif;
-      background: radial-gradient(ellipse at top, #1a1025 0%, #0a0612 60%, #020104 100%);
-      min-height: 100vh; display: flex; flex-direction: column; color: #f0eaf8; overflow-x: hidden
+      background-color: #f1f5f9; 
+      color: #0f172a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
-    body::before {
-      content: ''; position: fixed; top: -50%; left: -50%; width: 200%; height: 200%;
-      background: radial-gradient(circle at 30% 20%, rgba(124, 58, 237, .06) 0%, transparent 50%);
-      pointer-events: none; animation: drift 20s ease-in-out infinite; z-index: 0
-    }
-    @keyframes drift { 0%, 100% { transform: translate(0, 0) } 50% { transform: translate(20px, 15px) } }
+    
+    /* Header */
     .header {
-      position: sticky; top: 0; z-index: 100; display: flex; justify-content: space-between;
-      align-items: center; padding: 18px 40px; background: rgba(8, 4, 18, .8);
-      border-bottom: 1px solid rgba(192, 132, 252, .15); backdrop-filter: blur(20px)
+      background: #ffffff;
+      padding: 16px 40px;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
-    .logo { font-size: 22px; font-weight: 800; background: linear-gradient(120deg, #c084fc, #818cf8, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text }
-    .nav-links { display: flex; gap: 6px; list-style: none }
-    .nav-links a { text-decoration: none; color: rgba(255, 255, 255, .55); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; padding: 8px 16px; border-radius: 10px; transition: all .3s }
-    .nav-links a:hover, .nav-links a.active { color: #c084fc; background: rgba(192, 132, 252, .12) }
-    .container { flex: 1; padding: 36px 40px; display: grid; grid-template-columns: 2fr 1fr; gap: 24px; max-width: 1440px; margin: 0 auto; width: 100%; position: relative; z-index: 1 }
-    .page-title { grid-column: 1/-1; font-size: 32px; font-weight: 800; background: linear-gradient(120deg, #c084fc, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; text-align: center; }
-    .card { background: rgba(255, 255, 255, .04); border: 1px solid rgba(192, 132, 252, .15); border-radius: 24px; padding: 28px; box-shadow: 0 20px 50px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(255, 255, 255, .05); backdrop-filter: blur(20px); transition: all .3s }
-    .card-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: #a78bfa; margin-bottom: 22px }
-    .chart-wrapper { position: relative; height: 300px; margin-bottom: 16px }
-    .model-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
-    .toggle-btn { padding: 12px 16px; border: none; background: rgba(124, 58, 237, .1); color: #a78bfa; border: 1px solid rgba(124, 58, 237, .25); border-radius: 12px; cursor: pointer; font-weight: 700; font-size: 12px; font-family: inherit; transition: all .3s; letter-spacing: .3px }
-    .toggle-btn.active { background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; border-color: #7c3aed; box-shadow: 0 8px 24px rgba(124, 58, 237, .4) }
-    .stats-grid { display: flex; flex-direction: column; gap: 12px; margin-top: 20px }
-    .stat-card { padding: 16px 18px; background: rgba(0, 0, 0, .25); border-radius: 14px; border: 1px solid rgba(255, 255, 255, .06); display: flex; justify-content: space-between; align-items: center; transition: all .3s }
-    .stat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: rgba(255, 255, 255, .5) }
-    .stat-value { font-size: 22px; font-weight: 800; background: linear-gradient(120deg, #c084fc, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text }
-    .comparison-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px }
-    .model-item { background: rgba(0, 0, 0, .22); padding: 18px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, .07); text-align: center; transition: all .3s }
-    .model-name { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 12px; color: rgba(255, 255, 255, .7) }
-    .bar { width: 100%; height: 5px; background: rgba(255, 255, 255, .08); border-radius: 3px; overflow: hidden; margin-bottom: 10px }
-    .bar-fill { height: 100%; background: linear-gradient(90deg, #7c3aed, #c084fc); border-radius: 3px; transition: width .5s }
-    .latency-value { font-size: 20px; font-weight: 800; color: #c084fc }
-    .latency-unit { font-size: 10px; color: rgba(255, 255, 255, .4); margin-top: 2px }
-    @media(max-width:1200px) { .container { grid-template-columns: 1fr } }
+    .logo { font-size: 20px; font-weight: 800; color: #2563eb; }
+    .nav-links { display: flex; gap: 8px; list-style: none; }
+    .nav-links a { text-decoration: none; color: #64748b; font-size: 14px; font-weight: 600; padding: 8px 16px; border-radius: 8px; transition: all 0.2s; }
+    .nav-links a:hover, .nav-links a.active { color: #2563eb; background: #eff6ff; }
+    
+    /* Main Container */
+    .container { padding: 30px 40px; max-width: 1200px; margin: 0 auto; width: 100%; display: grid; gap: 24px; }
+    
+    /* Control Section */
+    .record-section { text-align: center; background: #ffffff; padding: 30px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+    .btn-record { background: #2563eb; color: white; border: none; padding: 14px 32px; font-size: 16px; font-weight: 600; border-radius: 12px; cursor: pointer; transition: background 0.2s; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2); }
+    .btn-record:hover { background: #1d4ed8; }
+    .status-text { margin-top: 12px; font-size: 14px; font-weight: 500; color: #64748b; min-height: 20px; }
+
+    /* Grid Layout for RNN vs LSTM */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    
+    /* Data Cards */
+    .card { background: #ffffff; border-radius: 16px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+    .card-title { font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+    .badge { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; background: #eff6ff; color: #2563eb; }
+    
+    /* Highlight Result Box */
+    .result-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 24px; text-align: center; }
+    .result-word { font-size: 28px; font-weight: 800; color: #0f172a; margin-bottom: 4px; text-transform: uppercase; }
+    .result-meta { font-size: 13px; font-weight: 500; color: #64748b; }
+
+    /* Softmax Probability Bars */
+    .prob-row { display: flex; align-items: center; margin-bottom: 12px; font-size: 13px; }
+    .prob-label { width: 80px; font-weight: 600; color: #475569; text-transform: uppercase; }
+    .prob-bar-bg { flex: 1; height: 10px; background: #f1f5f9; border-radius: 5px; margin: 0 12px; overflow: hidden; border: 1px solid #e2e8f0; }
+    .prob-bar-fill { height: 100%; border-radius: 5px; transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+    .prob-value { width: 50px; text-align: right; font-weight: 700; color: #0f172a; }
+    
+    /* Utility cho Tailwind-like css if needed */
+    .mt-4 { margin-top: 1rem; }
+    .pt-4 { padding-top: 1rem; }
+    .border-t { border-top-width: 1px; }
+    .border-slate-200 { border-color: #e2e8f0; }
+    .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+    .font-bold { font-weight: 700; }
+    .text-slate-700 { color: #334155; }
+    .mb-2 { margin-bottom: 0.5rem; }
+    .text-xs { font-size: 0.75rem; line-height: 1rem; }
+    .text-slate-600 { color: #475569; }
+    .space-y-1 > * + * { margin-top: 0.25rem; }
+    .flex { display: flex; }
+    .justify-between { justify-content: space-between; }
+    .bg-slate-50 { background-color: #f8fafc; }
+    .p-2 { padding: 0.5rem; }
+    .rounded { border-radius: 0.25rem; }
+    .text-green-600 { color: #16a34a; }
+    .text-slate-500 { color: #64748b; }
   </style>
 </head>
-
 <body>
+
   <header class="header">
-    <div class="logo">🏠 SmartHome</div>
+    <div class="logo">AI Research Dashboard</div>
     <ul class="nav-links">
-      <li><a href="home.html">Home</a></li>
-      <li><a href="dashboard.html" class="active">Dashboard</a></li>
-      <li><a href="assistant.html">Assistant</a></li>
+      <li><a href="home.html">SmartHome UI</a></li>
+      <li><a href="dashboard.html" class="active">Model Evaluation</a></li>
     </ul>
   </header>
 
-  <div style="text-align: center; margin-top: 30px; z-index: 10;">
-    <button type="button" id="btnBenchmark" style="background: linear-gradient(120deg, #c084fc, #7c3aed); border: none; color: white; padding: 15px 30px; font-size: 16px; font-weight: 600; border-radius: 30px; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4);">
-      🎤 Nhấn để Bắt đầu Đo tốc độ (Thu âm 3s tiếng Anh)
-    </button>
-    <p id="benchmarkStatus" style="color: #c084fc; font-size: 14px; margin-top: 10px; height: 20px;"></p>
-  </div>
-
   <div class="container">
-    <div class="card">
-      <div class="card-title">Latency Comparison</div>
-      <div class="chart-wrapper"><canvas id="comparisonChart"></canvas></div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">View Controls</div>
-      <div class="model-selector">
-        <button class="toggle-btn active" data-view="bar">📊 Bar Chart</button>
-        <button class="toggle-btn" data-view="line">📈 Trend Line</button>
+    
+    <div class="record-section">
+      <div style="display: flex; gap: 16px; justify-content: center; margin-bottom: 12px;">
+        <button type="button" id="btnWord" class="btn-record" style="background: #2563eb;">
+          🎤 Test Từ Đơn (3s)
+        </button>
+        <button type="button" id="btnSentence" class="btn-record" style="background: #4f46e5;">
+          🗣️ Test Câu Dài / Nhiễu (5s)
+        </button>
       </div>
-      <div class="stats-grid">
-        <div class="stat-card"><span class="stat-label">Fastest</span><span class="stat-value" id="fastest">0 ms</span></div>
-        <div class="stat-card"><span class="stat-label">Average</span><span class="stat-value" id="average">0 ms</span></div>
-        <div class="stat-card"><span class="stat-label">Slowest</span><span class="stat-value" id="slowest">0 ms</span></div>
+      <div id="benchmarkStatus" class="status-text">
+        Hệ thống sẵn sàng... Chọn chế độ để kiểm thử mô hình.
       </div>
     </div>
 
-    <div class="card" style="grid-column:1/-1">
-      <div class="card-title">All Models (Live Data)</div>
-      <div class="comparison-grid" id="comparisonGrid"></div>
+    <div class="grid-2">
+      
+      <div class="card">
+        <div class="card-title">
+          Thuật toán: Vanilla RNN
+          <span class="badge" id="rnn-latency">0 ms</span>
+        </div>
+        <div class="result-box">
+          <div class="result-word" id="rnn-result">---</div>
+          <div class="result-meta">Kết quả phân loại nhãn (Classifier)</div>
+        </div>
+        <div id="rnn-probs">
+          <div style="text-align:center; color:#94a3b8; font-size: 13px; padding: 20px 0;">Nhấn thu âm để hiển thị mảng Softmax...</div>
+        </div>
+        <div class="mt-4 pt-4 border-t border-slate-200">
+            <div class="text-sm font-bold text-slate-700 mb-2">Quét Cửa Sổ Trượt (Từng giây):</div>
+            <div id="rnn-timeline" class="text-xs text-slate-600 space-y-1"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          Thuật toán: Advanced LSTM
+          <span class="badge" id="lstm-latency">0 ms</span>
+        </div>
+        <div class="result-box">
+          <div class="result-word" id="lstm-result">---</div>
+          <div class="result-meta">Kết quả phân loại nhãn (Classifier)</div>
+        </div>
+        <div id="lstm-probs">
+          <div style="text-align:center; color:#94a3b8; font-size: 13px; padding: 20px 0;">Nhấn thu âm để hiển thị mảng Softmax...</div>
+        </div>
+        <div class="mt-4 pt-4 border-t border-slate-200">
+            <div class="text-sm font-bold text-slate-700 mb-2">Quét Cửa Sổ Trượt (Từng giây):</div>
+            <div id="lstm-timeline" class="text-xs text-slate-600 space-y-1"></div>
+        </div>
+      </div>
+
     </div>
   </div>
 
   <script>
-    let models = [
-      { name: 'Vanilla RNN', key: 'rnn', latency: 0, accuracy: null, color: '#f87171' },
-      { name: 'Advanced LSTM', key: 'lstm', latency: 0, accuracy: null, color: '#34d399' },
-      { name: 'Whisper (tiny.en)', key: 'phowhisper', latency: 0, accuracy: null, color: '#60a5fa' }
-    ];
-    let currentView = 'bar', chart = null;
-
-    function initChart() {
-      const ctx = document.getElementById('comparisonChart').getContext('2d');
-      if (chart) chart.destroy();
-      chart = new Chart(ctx, {
-        type: currentView === 'bar' ? 'bar' : 'line',
-        data: {
-          labels: models.map(m => m.name),
-          datasets: [{
-            label: 'Latency (ms)',
-            data: models.map(m => m.latency),
-            backgroundColor: models.map(m => m.color + '66'),
-            borderColor: models.map(m => m.color),
-            borderWidth: 2, borderRadius: 8, tension: .4, fill: true,
-            pointRadius: 5, pointBackgroundColor: models.map(m => m.color)
-          }]
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: 'rgba(255,255,255,.75)' } } }, scales: { y: { beginAtZero: true, suggestedMax: 200, ticks: { color: 'rgba(255,255,255,.5)' }, grid: { color: 'rgba(255,255,255,.06)' } }, x: { ticks: { color: 'rgba(255,255,255,.5)' }, grid: { display: false } } } }
-      });
-    }
-
-    function initComparison() {
-      const grid = document.getElementById('comparisonGrid');
-      grid.innerHTML = '';
-      const max = Math.max(...models.map(m => m.latency), 100); 
-      models.forEach(m => {
-        const pct = (m.latency / max) * 100;
-        const el = document.createElement('div');
-        el.className = 'model-item';
-        let accStr = (m.accuracy !== null && m.accuracy !== undefined) ? `Accuracy: ${m.accuracy.toFixed(2)}%` : 'Accuracy: N/A';
-        el.innerHTML = `<div class="model-name">${m.name}</div><div class="bar"><div class="bar-fill" style="width:${pct}%;background:linear-gradient(90deg,${m.color},${m.color}99)"></div></div><div class="latency-value">${Math.round(m.latency)}</div><div class="latency-unit">milliseconds</div><div style="margin-top:8px; font-size:12px; font-weight:600; color:rgba(255,255,255,0.7);">${accStr}</div>`;
-        grid.appendChild(el);
-      });
-    }
-
-    function updateStats() {
-      const lat = models.map(m => m.latency);
-      if (Math.max(...lat) === 0) return; 
-      document.getElementById('fastest').textContent = Math.min(...lat) + ' ms';
-      document.getElementById('slowest').textContent = Math.max(...lat) + ' ms';
-      document.getElementById('average').textContent = Math.round(lat.reduce((a, b) => a + b) / lat.length) + ' ms';
-    }
-
-    document.querySelectorAll('.toggle-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentView = btn.dataset.view;
-        initChart();
-      });
-    });
-
-    initChart(); initComparison();
-
-    const btnBenchmark = document.getElementById('btnBenchmark');
+    const btnWord = document.getElementById('btnWord');
+    const btnSentence = document.getElementById('btnSentence');
     const benchmarkStatus = document.getElementById('benchmarkStatus');
-    btnBenchmark.addEventListener('click', async () => {
+
+    // Hàm render thanh tiến trình Softmax
+    function updateProbabilities(modelKey, probs) {
+      const container = document.getElementById(`${modelKey}-probs`);
+      container.innerHTML = '';
+      const sortedProbs = Object.entries(probs).sort((a, b) => b[1] - a[1]);
+      
+      sortedProbs.forEach(([label, val]) => {
+        let color = val >= 80 ? '#22c55e' : (val > 30 ? '#f59e0b' : '#cbd5e1'); 
+        container.innerHTML += `
+          <div class="prob-row">
+            <div class="prob-label">${label}</div>
+            <div class="prob-bar-bg">
+              <div class="prob-bar-fill" style="width: ${val}%; background-color: ${color}"></div>
+            </div>
+            <div class="prob-value">${val.toFixed(1)}%</div>
+          </div>
+        `;
+      });
+    }
+
+    // Hàm thu âm động
+    async function startRecording(durationMs, activeBtn, otherBtn) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const mediaRecorder = new MediaRecorder(stream);
         let audioChunks = [];
 
+        // UI Updates
+        activeBtn.innerHTML = "🔴 Đang lắng nghe...";
+        activeBtn.style.background = "#ef4444";
+        otherBtn.disabled = true;
+        otherBtn.style.opacity = "0.5";
+        benchmarkStatus.innerHTML = `Đang ghi âm (${durationMs/1000}s)...`;
+        
         mediaRecorder.start();
-        btnBenchmark.innerHTML = "🔴 Đang thu âm...";
-        setTimeout(() => { mediaRecorder.stop(); stream.getTracks().forEach(t => t.stop()); }, 3000);
+        
+        setTimeout(() => { 
+          mediaRecorder.stop(); 
+          stream.getTracks().forEach(t => t.stop()); 
+        }, durationMs);
+
         mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+        
         mediaRecorder.onstop = async () => {
+          activeBtn.innerHTML = "⏳ Đang phân tích...";
+          activeBtn.style.background = "#eab308";
+          benchmarkStatus.innerHTML = "Đang chạy mô hình AI, vui lòng đợi...";
+          
           const formData = new FormData();
           formData.append('audio', new Blob(audioChunks, { type: 'audio/wav' }));
-          const res = await fetch('http://127.0.0.1:5001/api/benchmark', { method: 'POST', body: formData });
-          const result = await res.json();
-          models.find(m => m.key === 'rnn').latency = result.rnn.latency;
-          models.find(m => m.key === 'lstm').latency = result.lstm.latency;
-          models.find(m => m.key === 'phowhisper').latency = result.phowhisper.latency;
-          models.find(m => m.key === 'rnn').accuracy = result.rnn.accuracy;
-          models.find(m => m.key === 'lstm').accuracy = result.lstm.accuracy;
-          models.find(m => m.key === 'phowhisper').accuracy = result.phowhisper.accuracy;
-          chart.data.datasets[0].data = models.map(m => m.latency);
-          chart.update();
-          initComparison();
-          updateStats();
-          benchmarkStatus.innerHTML = `RNN: [${result.rnn.result}] | LSTM: [${result.lstm.result}] | Whisper: [${result.phowhisper.result}]`;
-          btnBenchmark.innerHTML = "🎤 Nhấn để Bắt đầu Đo tốc độ (Thu âm 3s tiếng Anh)";
+          
+          try {
+            const res = await fetch('http://127.0.0.1:5001/api/benchmark', { method: 'POST', body: formData });
+            const data = await res.json();
+            
+            // Cập nhật RNN CƠ BẢN
+            document.getElementById('rnn-result').textContent = data.rnn.result;
+            document.getElementById('rnn-latency').textContent = data.rnn.latency + ' ms';
+            updateProbabilities('rnn', data.rnn.probs);
+
+            // Cập nhật LSTM CƠ BẢN
+            document.getElementById('lstm-result').textContent = data.lstm.result;
+            document.getElementById('lstm-latency').textContent = data.lstm.latency + ' ms';
+            updateProbabilities('lstm', data.lstm.probs);
+
+            // ==========================================
+            // VẼ TIMELINE (Sửa lỗi đặt sai vị trí ở đây)
+            // ==========================================
+            
+            // 1. Timeline RNN
+            const rnnTimelineBox = document.getElementById('rnn-timeline');
+            rnnTimelineBox.innerHTML = '';
+            if (data.rnn.timeline && data.rnn.timeline.length > 0) {
+                data.rnn.timeline.forEach(step => {
+                    let color = step.confidence > 80 && step.predicted !== 'noise' ? 'text-green-600 font-bold' : 'text-slate-500';
+                    rnnTimelineBox.innerHTML += `
+                        <div class="flex justify-between bg-slate-50 p-2 rounded">
+                            <span>⏱️ ${step.time}</span>
+                            <span class="${color}">Dự đoán: [${step.predicted.toUpperCase()}] (${step.confidence}%)</span>
+                        </div>
+                    `;
+                });
+            }
+
+            // 2. Timeline LSTM
+            const lstmTimelineBox = document.getElementById('lstm-timeline');
+            lstmTimelineBox.innerHTML = '';
+            if (data.lstm.timeline && data.lstm.timeline.length > 0) {
+                data.lstm.timeline.forEach(step => {
+                    let color = step.confidence > 80 && step.predicted !== 'noise' ? 'text-green-600 font-bold' : 'text-slate-500';
+                    lstmTimelineBox.innerHTML += `
+                        <div class="flex justify-between bg-slate-50 p-2 rounded">
+                            <span>⏱️ ${step.time}</span>
+                            <span class="${color}">Dự đoán: [${step.predicted.toUpperCase()}] (${step.confidence}%)</span>
+                        </div>
+                    `;
+                });
+            }
+
+            benchmarkStatus.innerHTML = "✅ Hoàn tất phân tích.";
+          } catch (err) {
+            console.error(err);
+            benchmarkStatus.innerHTML = "❌ Lỗi kết nối đến Backend API.";
+          }
+
+          // Phục hồi trạng thái Nút
+          btnWord.innerHTML = "🎤 Test Từ Đơn (3s)";
+          btnWord.style.background = "#2563eb";
+          btnSentence.innerHTML = "🗣️ Test Câu Dài / Nhiễu (5s)";
+          btnSentence.style.background = "#4f46e5";
+          
+          btnWord.disabled = false; btnWord.style.opacity = "1";
+          btnSentence.disabled = false; btnSentence.style.opacity = "1";
         };
-      } catch (e) { alert("Lỗi Micro!"); }
-    });
+      } catch (e) { 
+        alert("Lỗi truy cập Micro! Vui lòng cho phép quyền sử dụng Microphone."); 
+      }
+    }
+
+    // Gán sự kiện
+    btnWord.addEventListener('click', () => startRecording(3000, btnWord, btnSentence));
+    btnSentence.addEventListener('click', () => startRecording(5000, btnSentence, btnWord));
   </script>
 </body>
 </html>
