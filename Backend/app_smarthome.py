@@ -13,7 +13,6 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 
-# ❌ TUYỆT ĐỐI KHÔNG IMPORT SPEECHBRAIN Ở ĐÂY
 
 load_dotenv() 
 
@@ -82,6 +81,8 @@ def load_smarthome_models():
         models['w_vi_model'].eval()
     except Exception as e:
          print(f"⚠️ Lỗi nạp PhoWhisper: {e}")
+
+
 
     # 3. Nạp SpeechBrain
     print("⏳ Đang nạp hệ thống Sinh trắc học Giọng nói (SpeechBrain)...")

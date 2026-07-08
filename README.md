@@ -46,8 +46,8 @@ Dự án này sử dụng mô hình AI Lai (Hybrid AI) để tối ưu hoá tố
     - `whisper-small/`: Mô hình PhoWhisper (đã được tải về máy).
   - `my_voice/`: Chứa file `a1.wav` lưu trữ mẫu giọng chủ nhà để đối chiếu.
 - `Frontend/`
-  - `home.html`: Giao diện Smart Home trực quan (Vanilla HTML/CSS/JS kết hợp TailwindCSS từ CDN), có mô phỏng phòng khách 3D và giao diện Chat.
-  - `dashboard.html`: Giao diện báo cáo kết quả đánh giá mô hình.
+  - `home.html`: Giao diện Smart Home trực quan (Code thuần Vanilla HTML/CSS/JS, hoàn toàn không sử dụng React), kết hợp TailwindCSS và FontAwesome từ CDN. Cung cấp Dashboard điều khiển, mô phỏng phòng khách 3D sống động và giao diện Chat với AI.
+  - `dashboard.html`: Giao diện báo cáo kết quả đánh giá các mô hình AI.
 - `.env`: File chứa API Key của Google Gemini.
 
 ---
@@ -79,12 +79,16 @@ GEMINI_API_KEY=your_gemini_api_key_here
 ```bash
 python app_smarthome.py
 ```
-> **Lưu ý:** Lần đầu chạy, hệ thống sẽ tự động tải các mô hình `SpeechBrain` và `PhoWhisper` từ Hugging Face nếu chúng chưa có trong thư mục `models/`. Xin kiên nhẫn.
+> **Lưu ý:** Lần đầu chạy, hệ thống sẽ tự động tải các mô hình `SpeechBrain` và `Whisper` từ Hugging Face`models/`. chờ.
 
 ### 2) Khởi động Frontend (Giao diện)
 
-Dự án Frontend được code thuần (Vanilla) nên bạn **không cần cài đặt Node.js hay build code**. 
-Chỉ cần mở file `Frontend/home.html` bằng trình duyệt (hoặc dùng tiện ích *Live Server* trong VSCode) là có thể sử dụng ngay.
+Dự án Frontend đã được chuyển đổi hoàn toàn sang code thuần (Vanilla JavaScript/HTML/CSS), **loại bỏ React** để tối ưu hóa sự nhẹ bén và dễ dàng triển khai. Do đó, bạn **không cần cài đặt Node.js, npm hay build code**.
+
+1. Mở file `Frontend/home.html` bằng trình duyệt web.
+2. Hoặc sử dụng tiện ích **Live Server** trong VSCode để chạy (Khuyến nghị).
+
+> **Lưu ý:** Để tính năng thu âm vân tay giọng nói và ra lệnh bằng giọng nói hoạt động, bắt buộc phải chạy Frontend trên nền `http://localhost` (dùng Live Server) hoặc `https://` để trình duyệt cấp quyền truy cập Microphone.
 
 ---
 
